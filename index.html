@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kubistický slicer 3D + deformace</title>
+  <title>Kubistický slicer 3D + deformace + indikátory</title>
   <script src="https://unpkg.com/paper"></script>
   <style>
     html, body {
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background: #f3f5ef;
+      background: #f3f2ef;
       height: 100%;
       width: 100%;
     }
@@ -29,6 +29,8 @@
     var numSides = 6;
     var radius = 150;
     var rotationY = 0;
+    var handleRadius = 6;
+    var handles = [];
 
     for (var i = 0; i < numSides; i++) {
       var angle = (i / numSides) * Math.PI * 2;
@@ -49,9 +51,24 @@
     }
 
     var shape = new Path();
-    shape.fillColor = '#000000';
+    shape.fillColor = '#d6b88d';
     for (var i = 0; i < basePoints.length; i++) shape.add(project(basePoints[i]));
     shape.closed = true;
+
+    // Vytvoření indikátorů (uchytů)
+    function updateHandles() {
+      // odstraníme staré
+      handles.forEach(h => h.remove());
+      handles = [];
+      for (var i = 0; i < basePoints.length; i++) {
+        var pos = project(basePoints[i]);
+        var handle = new Path.Circle(pos, handleRadius);
+        handle.fillColor = '#ff4d4d';
+        handle.opacity = 0.8;
+        handles.push(handle);
+      }
+    }
+    updateHandles();
 
     var isDragging = false;
     var deforming = false;
@@ -63,6 +80,8 @@
     function redrawShape() {
       shape.removeSegments();
       for (var i = 0; i < basePoints.length; i++) shape.add(project(basePoints[i]));
+      shape.closed = true;
+      updateHandles();
     }
 
     function findNearestVertex(point) {
@@ -103,7 +122,6 @@
         return;
       }
       if (deforming && deformIndex >= 0) {
-        // Deformuj zvolený vertex (včetně pseudo-Z osy)
         basePoints[deformIndex].x += event.delta.x * 0.5;
         basePoints[deformIndex].y += event.delta.y * 0.5;
         basePoints[deformIndex].z += Math.sin(event.delta.x * 0.05) * 20;
@@ -144,6 +162,7 @@
       var palette = ['#d6b88d', '#b8a47d', '#9a8b72', '#7a6b60', '#594b45'];
       return palette[Math.floor(Math.random() * palette.length)];
     }
+
   </script>
 </body>
 </html>
