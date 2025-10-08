@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kubistický slicer</title>
-  <script type="text/javascript" src="https://unpkg.com/paper"></script>
+  <title>Kubistický slicer 3D</title>
+  <script src="https://unpkg.com/paper"></script>
   <style>
     html, body {
       margin: 0;
@@ -25,53 +25,99 @@
   <canvas id="canvas" resize></canvas>
 
   <script type="text/paperscript" canvas="canvas">
-    // Vytvoření základního polygonu (kubisitický "blok")
-    var shape = new Path.RegularPolygon(new Point(view.center), 6, 200);
-    shape.fillColor = '#d6b88d';
+    var basePoints = [];
+    var numSides = 6;
+    var radius = 150;
+    var rotationY = 0;
 
-    var isDrawing = false;
+    // vytvoření "3D" bodů
+    for (var i = 0; i < numSides; i++) {
+      var angle = (i / numSides) * Math.PI * 2;
+      basePoints.push({ 
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+        z: Math.sin(angle) * 40 // náznak hloubky
+      });
+    }
+
+    function project(p) {
+      // jednoduchá rotace kolem osy Y
+      var cosY = Math.cos(rotationY);
+      var sinY = Math.sin(rotationY);
+      var x = p.x * cosY - p.z * sinY;
+      var z = p.x * sinY + p.z * cosY;
+      var scale = 1 / (1 + z / 300); // perspektiva
+      return new Point(view.center.x + x * scale, view.center.y + p.y * scale);
+    }
+
+    var shape = new Path();
+    shape.fillColor = '#d6b88d';
+    for (var i = 0; i < basePoints.length; i++) {
+      shape.add(project(basePoints[i]));
+    }
+    shape.closed = true;
+
+    var isDragging = false;
+    var lastX = 0;
     var slicerPath;
 
+    function redrawShape() {
+      shape.removeSegments();
+      for (var i = 0; i < basePoints.length; i++) {
+        shape.add(project(basePoints[i]));
+      }
+    }
+
     function onMouseDown(event) {
-      isDrawing = true;
-      slicerPath = new Path({
-        strokeColor: 'black',
-        strokeWidth: 2
-      });
-      slicerPath.add(event.point);
+      if (event.modifiers.shift) {
+        slicerPath = new Path({
+          strokeColor: 'black',
+          strokeWidth: 2
+        });
+        slicerPath.add(event.point);
+      } else {
+        isDragging = true;
+        lastX = event.point.x;
+      }
     }
 
     function onMouseDrag(event) {
-      if (isDrawing) slicerPath.add(event.point);
+      if (slicerPath) {
+        slicerPath.add(event.point);
+        return;
+      }
+      if (isDragging) {
+        rotationY += (event.point.x - lastX) * 0.01;
+        lastX = event.point.x;
+        redrawShape();
+      }
     }
 
     function onMouseUp(event) {
-      if (!isDrawing) return;
-      isDrawing = false;
-      slicerPath.add(event.point);
-
-      try {
-        var splitShapes = shape.divide(slicerPath);
-        if (splitShapes) {
-          // Rozlož obě části o kousek od sebe
-          splitShapes.children[0].fillColor = randomColor();
-          splitShapes.children[1].fillColor = randomColor();
-          splitShapes.children[0].position.x -= 10;
-          splitShapes.children[1].position.x += 10;
-          shape.remove(); // původní tvar pryč
-          shape = new Group(splitShapes.children);
+      if (slicerPath) {
+        slicerPath.add(event.point);
+        try {
+          var result = shape.divide(slicerPath);
+          if (result) {
+            result.children[0].fillColor = randomColor();
+            result.children[1].fillColor = randomColor();
+            shape.remove();
+            shape = new Group(result.children);
+          }
+        } catch (e) {
+          console.log('Neslo rozdělit:', e);
         }
-      } catch (e) {
-        console.log('Nešlo rozdělit tvar:', e);
+        slicerPath.remove();
+        slicerPath = null;
       }
-
-      slicerPath.remove();
+      isDragging = false;
     }
 
     function randomColor() {
       var palette = ['#d6b88d', '#b8a47d', '#9a8b72', '#7a6b60', '#594b45'];
       return palette[Math.floor(Math.random() * palette.length)];
     }
+
   </script>
 </body>
 </html>
