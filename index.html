@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kubistický slicer 3D</title>
+  <title>Kubistický slicer 3D + deformace</title>
   <script src="https://unpkg.com/paper"></script>
   <style>
     html, body {
@@ -30,45 +30,61 @@
     var radius = 150;
     var rotationY = 0;
 
-    // vytvoření "3D" bodů
     for (var i = 0; i < numSides; i++) {
       var angle = (i / numSides) * Math.PI * 2;
       basePoints.push({ 
         x: Math.cos(angle) * radius,
         y: Math.sin(angle) * radius,
-        z: Math.sin(angle) * 40 // náznak hloubky
+        z: Math.sin(angle) * 40
       });
     }
 
     function project(p) {
-      // jednoduchá rotace kolem osy Y
       var cosY = Math.cos(rotationY);
       var sinY = Math.sin(rotationY);
       var x = p.x * cosY - p.z * sinY;
       var z = p.x * sinY + p.z * cosY;
-      var scale = 1 / (1 + z / 300); // perspektiva
+      var scale = 1 / (1 + z / 300);
       return new Point(view.center.x + x * scale, view.center.y + p.y * scale);
     }
 
     var shape = new Path();
     shape.fillColor = '#d6b88d';
-    for (var i = 0; i < basePoints.length; i++) {
-      shape.add(project(basePoints[i]));
-    }
+    for (var i = 0; i < basePoints.length; i++) shape.add(project(basePoints[i]));
     shape.closed = true;
 
     var isDragging = false;
+    var deforming = false;
     var lastX = 0;
     var slicerPath;
+    var deformIndex = -1;
+    var deformTimeout;
 
     function redrawShape() {
       shape.removeSegments();
+      for (var i = 0; i < basePoints.length; i++) shape.add(project(basePoints[i]));
+    }
+
+    function findNearestVertex(point) {
+      var minDist = 9999;
+      var nearest = -1;
       for (var i = 0; i < basePoints.length; i++) {
-        shape.add(project(basePoints[i]));
+        var screen = project(basePoints[i]);
+        var d = point.getDistance(screen);
+        if (d < minDist && d < 40) {
+          minDist = d;
+          nearest = i;
+        }
       }
+      return nearest;
     }
 
     function onMouseDown(event) {
+      deformTimeout = setTimeout(function() {
+        deforming = true;
+        deformIndex = findNearestVertex(event.point);
+      }, 200);
+
       if (event.modifiers.shift) {
         slicerPath = new Path({
           strokeColor: 'black',
@@ -86,6 +102,14 @@
         slicerPath.add(event.point);
         return;
       }
+      if (deforming && deformIndex >= 0) {
+        // Deformuj zvolený vertex (včetně pseudo-Z osy)
+        basePoints[deformIndex].x += event.delta.x * 0.5;
+        basePoints[deformIndex].y += event.delta.y * 0.5;
+        basePoints[deformIndex].z += Math.sin(event.delta.x * 0.05) * 20;
+        redrawShape();
+        return;
+      }
       if (isDragging) {
         rotationY += (event.point.x - lastX) * 0.01;
         lastX = event.point.x;
@@ -94,6 +118,7 @@
     }
 
     function onMouseUp(event) {
+      clearTimeout(deformTimeout);
       if (slicerPath) {
         slicerPath.add(event.point);
         try {
@@ -110,14 +135,15 @@
         slicerPath.remove();
         slicerPath = null;
       }
+      deforming = false;
       isDragging = false;
+      deformIndex = -1;
     }
 
     function randomColor() {
       var palette = ['#d6b88d', '#b8a47d', '#9a8b72', '#7a6b60', '#594b45'];
       return palette[Math.floor(Math.random() * palette.length)];
     }
-
   </script>
 </body>
 </html>
