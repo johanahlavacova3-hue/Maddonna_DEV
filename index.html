@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Černá Madonna – interaktivní polygon + kamera</title>
+  <title>Kamera v polygonu – deformace</title>
   <script src="https://unpkg.com/paper@0.12.15/dist/paper-full.min.js"></script>
   <style>
     html, body {
@@ -23,6 +23,7 @@
       object-fit: cover;
       z-index: 0;
       display: none;
+      transform: scaleX(-1); /* zrcadlení pro přirozený efekt */
     }
     canvas {
       width: 100%;
@@ -54,26 +55,23 @@
   <script>
     paper.setup('canvas');
 
-    // --- Proměnné ---
     let mode = 'polygon';
     let basePoints = [];
-    const numSides = 6;
-    const radius = 220;
+    const numSides = 7;
+    const radius = 250;
     let rotationY = 0;
     let velocityY = 0;
     let isDragging = false;
     let deformIndex = -1;
-    let lastX = 0;
-    let shape;
-    let deformShape;
-    let stream = null;
     const video = document.getElementById('video');
     const button = document.getElementById('modeButton');
+    let videoTexture;
+    let stream = null;
 
-    // --- Polygon setup ---
+    // --- vytvoření polygonu ---
     for (let i = 0; i < numSides; i++) {
       const angle = (i / numSides) * Math.PI * 2;
-      basePoints.push({ 
+      basePoints.push({
         x: Math.cos(angle) * radius,
         y: Math.sin(angle) * radius,
         z: Math.sin(angle) * 40
@@ -89,21 +87,16 @@
       return new paper.Point(paper.view.center.x + x * scale, paper.view.center.y + p.y * scale);
     }
 
-    shape = new paper.Path();
+    let shape = new paper.Path();
     shape.strokeColor = 'white';
-    shape.fillColor = '#444';
-    shape.strokeWidth = 5;
-    for (let i = 0; i < basePoints.length; i++) shape.add(project(basePoints[i]));
+    shape.strokeWidth = 4;
     shape.closed = true;
-
-    deformShape = new paper.Path.Circle(paper.view.center, 200);
-    deformShape.strokeColor = 'rgba(255,255,255,0.5)';
-    deformShape.fillColor = 'rgba(255,255,255,0.1)';
-    deformShape.visible = false;
+    redrawShape();
 
     function redrawShape() {
       shape.removeSegments();
       for (let i = 0; i < basePoints.length; i++) shape.add(project(basePoints[i]));
+      shape.smooth();
     }
 
     function findNearestVertex(point) {
@@ -120,18 +113,34 @@
       return nearest;
     }
 
-    // --- Myš/touch události ---
+    // --- Vykreslení textury (video uvnitř polygonu) ---
+    function drawVideoTexture() {
+      const ctx = paper.view.element.getContext('2d');
+      if (video.readyState === 4) {
+        // clip polygon
+        ctx.save();
+        ctx.beginPath();
+        const segs = shape.segments;
+        ctx.moveTo(segs[0].point.x, segs[0].point.y);
+        for (let i = 1; i < segs.length; i++) {
+          ctx.lineTo(segs[i].point.x, segs[i].point.y);
+        }
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(video, 0, 0, paper.view.size.width, paper.view.size.height);
+        ctx.restore();
+      }
+    }
+
+    // --- Události ---
     paper.view.onMouseDown = function (event) {
       isDragging = true;
-      lastX = event.point.x;
       deformIndex = findNearestVertex(event.point);
     };
 
     paper.view.onMouseDrag = function (event) {
       if (!isDragging) return;
-
       if (mode === 'polygon') {
-        // otáčení i deformace současně
         rotationY += event.delta.x * 0.01;
         velocityY = event.delta.x * 0.005;
 
@@ -142,12 +151,11 @@
         }
         redrawShape();
       } else if (mode === 'camera') {
-        // deformace masky
-        for (let i = 0; i < deformShape.segments.length; i++) {
-          const seg = deformShape.segments[i];
-          const dist = seg.point.getDistance(event.point);
-          if (dist < 100) seg.point = seg.point.add(event.delta.multiply(0.3));
+        if (deformIndex >= 0) {
+          basePoints[deformIndex].x += event.delta.x * 0.6;
+          basePoints[deformIndex].y += event.delta.y * 0.6;
         }
+        redrawShape();
       }
     };
 
@@ -160,8 +168,10 @@
       if (!isDragging && mode === 'polygon') {
         rotationY += velocityY;
         velocityY *= 0.95;
-        if (Math.abs(velocityY) < 0.0001) velocityY = 0;
         redrawShape();
+      }
+      if (mode === 'camera') {
+        drawVideoTexture();
       }
     };
 
@@ -170,23 +180,25 @@
       if (mode === 'polygon') {
         mode = 'camera';
         button.textContent = 'Režim: Kamera';
-        shape.visible = false;
-        deformShape.visible = true;
+        shape.strokeColor = 'rgba(255,255,255,0.5)';
         video.style.display = 'block';
+        paper.view.element.style.background = 'transparent';
 
         if (!stream) {
           try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: { ideal: "environment" } },
+              audio: false
+            });
             video.srcObject = stream;
           } catch (err) {
-            alert('Nelze získat přístup ke kameře: ' + err);
+            alert('Nelze získat zadní kameru: ' + err);
           }
         }
       } else {
         mode = 'polygon';
         button.textContent = 'Režim: Polygon';
-        shape.visible = true;
-        deformShape.visible = false;
+        shape.strokeColor = 'white';
         video.style.display = 'none';
       }
     });
