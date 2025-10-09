@@ -3,35 +3,76 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Černá Madonna - WebApp</title>
-  <script src="https://unpkg.com/paper"></script>
+  <title>Černá Madonna – interaktivní polygon + kamera</title>
+  <script src="https://unpkg.com/paper@0.12.15/dist/paper-full.min.js"></script>
   <style>
     html, body {
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background: #0F0F0F;
+      background: #000;
       height: 100%;
       width: 100%;
+    }
+    #video {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 0;
+      display: none;
     }
     canvas {
       width: 100%;
       height: 100%;
       touch-action: none;
+      position: relative;
+      z-index: 1;
+    }
+    #modeButton {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      background: rgba(255,255,255,0.85);
+      cursor: pointer;
+      z-index: 10;
     }
   </style>
 </head>
 <body>
+  <video id="video" autoplay playsinline muted></video>
+  <button id="modeButton">Režim: Polygon</button>
   <canvas id="canvas" resize></canvas>
 
-  <script type="text/paperscript" canvas="canvas">
-    var basePoints = [];
-    var numSides = 6;
-    var radius = 220;
-    var rotationY = 0;
+  <script>
+    paper.setup('canvas');
 
-    for (var i = 0; i < numSides; i++) {
-      var angle = (i / numSides) * Math.PI * 2;
+    // --- Proměnné ---
+    let mode = 'polygon';
+    let basePoints = [];
+    const numSides = 6;
+    const radius = 220;
+    let rotationY = 0;
+    let velocityY = 0;
+    let isDragging = false;
+    let deformIndex = -1;
+    let lastX = 0;
+    let shape;
+    let deformShape;
+    let stream = null;
+    const video = document.getElementById('video');
+    const button = document.getElementById('modeButton');
+
+    // --- Polygon setup ---
+    for (let i = 0; i < numSides; i++) {
+      const angle = (i / numSides) * Math.PI * 2;
       basePoints.push({ 
         x: Math.cos(angle) * radius,
         y: Math.sin(angle) * radius,
@@ -40,39 +81,37 @@
     }
 
     function project(p) {
-      var cosY = Math.cos(rotationY);
-      var sinY = Math.sin(rotationY);
-      var x = p.x * cosY - p.z * sinY;
-      var z = p.x * sinY + p.z * cosY;
-      var scale = 1 / (1 + z / 300);
-      return new Point(view.center.x + x * scale, view.center.y + p.y * scale);
+      const cosY = Math.cos(rotationY);
+      const sinY = Math.sin(rotationY);
+      const x = p.x * cosY - p.z * sinY;
+      const z = p.x * sinY + p.z * cosY;
+      const scale = 1 / (1 + z / 300);
+      return new paper.Point(paper.view.center.x + x * scale, paper.view.center.y + p.y * scale);
     }
 
-    var shape = new Path();
-    shape.strokeColor = '#ffffff';
-    shape.fillOpacity = 0.5;
+    shape = new paper.Path();
+    shape.strokeColor = 'white';
+    shape.fillColor = '#444';
     shape.strokeWidth = 5;
-    for (var i = 0; i < basePoints.length; i++) shape.add(project(basePoints[i]));
+    for (let i = 0; i < basePoints.length; i++) shape.add(project(basePoints[i]));
     shape.closed = true;
 
-    var isDragging = false;
-    var deforming = false;
-    var lastX = 0;
-    var slicerPath;
-    var deformIndex = -1;
-    var deformTimeout;
+    deformShape = new paper.Path.Circle(paper.view.center, 200);
+    deformShape.strokeColor = 'rgba(255,255,255,0.5)';
+    deformShape.fillColor = 'rgba(255,255,255,0.1)';
+    deformShape.visible = false;
 
     function redrawShape() {
       shape.removeSegments();
-      for (var i = 0; i < basePoints.length; i++) shape.add(project(basePoints[i]));
+      for (let i = 0; i < basePoints.length; i++) shape.add(project(basePoints[i]));
     }
 
     function findNearestVertex(point) {
-      var minDist = 9999;
-      var nearest = -1;
-      for (var i = 0; i < basePoints.length; i++) {
-        var screen = project(basePoints[i]);
-        var d = point.getDistance(screen);
+      let minDist = 9999;
+      let nearest = -1;
+      for (let i = 0; i < basePoints.length; i++) {
+        const screen = project(basePoints[i]);
+        const d = point.getDistance(screen);
         if (d < minDist && d < 40) {
           minDist = d;
           nearest = i;
@@ -81,71 +120,76 @@
       return nearest;
     }
 
-    function onMouseDown(event) {
-      deformTimeout = setTimeout(function() {
-        deforming = true;
-        deformIndex = findNearestVertex(event.point);
-      }, 200);
+    // --- Myš/touch události ---
+    paper.view.onMouseDown = function (event) {
+      isDragging = true;
+      lastX = event.point.x;
+      deformIndex = findNearestVertex(event.point);
+    };
 
-      if (event.modifiers.shift) {
-        slicerPath = new Path({
-          strokeColor: 'black',
-          strokeWidth: 2
-        });
-        slicerPath.add(event.point);
-      } else {
-        isDragging = true;
-        lastX = event.point.x;
-      }
-    }
+    paper.view.onMouseDrag = function (event) {
+      if (!isDragging) return;
 
-    function onMouseDrag(event) {
-      if (slicerPath) {
-        slicerPath.add(event.point);
-        return;
-      }
-      if (deforming && deformIndex >= 0) {
-        // Deformuj zvolený vertex (včetně pseudo-Z osy)
-        basePoints[deformIndex].x += event.delta.x * 0.5;
-        basePoints[deformIndex].y += event.delta.y * 0.5;
-        basePoints[deformIndex].z += Math.sin(event.delta.x * 0.05) * 20;
-        redrawShape();
-        return;
-      }
-      if (isDragging) {
-        rotationY += (event.point.x - lastX) * 0.01;
-        lastX = event.point.x;
-        redrawShape();
-      }
-    }
+      if (mode === 'polygon') {
+        // otáčení i deformace současně
+        rotationY += event.delta.x * 0.01;
+        velocityY = event.delta.x * 0.005;
 
-    function onMouseUp(event) {
-      clearTimeout(deformTimeout);
-      if (slicerPath) {
-        slicerPath.add(event.point);
-        try {
-          var result = shape.divide(slicerPath);
-          if (result) {
-            result.children[0].fillColor = randomColor();
-            result.children[1].fillColor = randomColor();
-            shape.remove();
-            shape = new Group(result.children);
-          }
-        } catch (e) {
-          console.log('Neslo rozdělit:', e);
+        if (deformIndex >= 0) {
+          basePoints[deformIndex].x += event.delta.x * 0.5;
+          basePoints[deformIndex].y += event.delta.y * 0.5;
+          basePoints[deformIndex].z += Math.sin(event.delta.x * 0.05) * 20;
         }
-        slicerPath.remove();
-        slicerPath = null;
+        redrawShape();
+      } else if (mode === 'camera') {
+        // deformace masky
+        for (let i = 0; i < deformShape.segments.length; i++) {
+          const seg = deformShape.segments[i];
+          const dist = seg.point.getDistance(event.point);
+          if (dist < 100) seg.point = seg.point.add(event.delta.multiply(0.3));
+        }
       }
-      deforming = false;
+    };
+
+    paper.view.onMouseUp = function () {
       isDragging = false;
       deformIndex = -1;
-    }
+    };
 
-    function randomColor() {
-      var palette = ['#d6b88d', '#b8a47d', '#9a8b72', '#7a6b60', '#594b45'];
-      return palette[Math.floor(Math.random() * palette.length)];
-    }
+    paper.view.onFrame = function () {
+      if (!isDragging && mode === 'polygon') {
+        rotationY += velocityY;
+        velocityY *= 0.95;
+        if (Math.abs(velocityY) < 0.0001) velocityY = 0;
+        redrawShape();
+      }
+    };
+
+    // --- Přepínání režimů ---
+    button.addEventListener('click', async function() {
+      if (mode === 'polygon') {
+        mode = 'camera';
+        button.textContent = 'Režim: Kamera';
+        shape.visible = false;
+        deformShape.visible = true;
+        video.style.display = 'block';
+
+        if (!stream) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+          } catch (err) {
+            alert('Nelze získat přístup ke kameře: ' + err);
+          }
+        }
+      } else {
+        mode = 'polygon';
+        button.textContent = 'Režim: Polygon';
+        shape.visible = true;
+        deformShape.visible = false;
+        video.style.display = 'none';
+      }
+    });
   </script>
 </body>
 </html>
