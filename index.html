@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kamera v 6úhelníku – deformace</title>
+  <title>Kamera v 6úhelníku – ostré hrany</title>
   <script src="https://unpkg.com/paper@0.12.15/dist/paper-full.min.js"></script>
   <style>
     html, body {
@@ -23,7 +23,7 @@
       object-fit: cover;
       z-index: 0;
       display: none;
-      transform: scaleX(-1); /* přirozený zrcadlový efekt */
+      transform: scaleX(-1); /* zrcadlový efekt pro kameru */
     }
     canvas {
       width: 100%;
@@ -57,7 +57,7 @@
 
     let mode = 'polygon';
     let basePoints = [];
-    const numSides = 6; // ⬅️ ZDE: přesně 6 úhelník
+    const numSides = 6; // přesně 6 úhelník
     const radius = 250;
     let rotationY = 0;
     let velocityY = 0;
@@ -95,7 +95,7 @@
     function redrawShape() {
       shape.removeSegments();
       for (let i = 0; i < basePoints.length; i++) shape.add(project(basePoints[i]));
-      shape.smooth();
+      // odstraněno shape.smooth(); => hrany zůstanou ostré
     }
 
     function findNearestVertex(point) {
