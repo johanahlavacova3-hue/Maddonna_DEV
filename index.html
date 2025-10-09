@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kamera v polygonu – deformace</title>
+  <title>Kamera v 6úhelníku – deformace</title>
   <script src="https://unpkg.com/paper@0.12.15/dist/paper-full.min.js"></script>
   <style>
     html, body {
@@ -23,7 +23,7 @@
       object-fit: cover;
       z-index: 0;
       display: none;
-      transform: scaleX(-1); /* zrcadlení pro přirozený efekt */
+      transform: scaleX(-1); /* přirozený zrcadlový efekt */
     }
     canvas {
       width: 100%;
@@ -57,7 +57,7 @@
 
     let mode = 'polygon';
     let basePoints = [];
-    const numSides = 7;
+    const numSides = 6; // ⬅️ ZDE: přesně 6 úhelník
     const radius = 250;
     let rotationY = 0;
     let velocityY = 0;
@@ -65,10 +65,9 @@
     let deformIndex = -1;
     const video = document.getElementById('video');
     const button = document.getElementById('modeButton');
-    let videoTexture;
     let stream = null;
 
-    // --- vytvoření polygonu ---
+    // --- vytvoření 6úhelníku ---
     for (let i = 0; i < numSides; i++) {
       const angle = (i / numSides) * Math.PI * 2;
       basePoints.push({
@@ -113,11 +112,10 @@
       return nearest;
     }
 
-    // --- Vykreslení textury (video uvnitř polygonu) ---
+    // --- kreslení videa do polygonu ---
     function drawVideoTexture() {
       const ctx = paper.view.element.getContext('2d');
       if (video.readyState === 4) {
-        // clip polygon
         ctx.save();
         ctx.beginPath();
         const segs = shape.segments;
@@ -132,7 +130,7 @@
       }
     }
 
-    // --- Události ---
+    // --- Události myši / dotyku ---
     paper.view.onMouseDown = function (event) {
       isDragging = true;
       deformIndex = findNearestVertex(event.point);
@@ -175,7 +173,7 @@
       }
     };
 
-    // --- Přepínání režimů ---
+    // --- přepínací tlačítko ---
     button.addEventListener('click', async function() {
       if (mode === 'polygon') {
         mode = 'camera';
