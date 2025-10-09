@@ -3,21 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Černá Madonna – interaktivní polygon</title>
+  <title>Černá Madonna – interaktivní polygon + kamera</title>
   <script src="https://unpkg.com/paper"></script>
   <style>
     html, body {
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background: #0F0F0F;
+      background: #000;
       height: 100%;
       width: 100%;
+    }
+    #video {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 0;
+      display: none;
     }
     canvas {
       width: 100%;
       height: 100%;
       touch-action: none;
+      position: relative;
+      z-index: 1;
     }
     #modeButton {
       position: fixed;
@@ -35,7 +47,8 @@
   </style>
 </head>
 <body>
-  <button id="modeButton">Režim: Rotace</button>
+  <video id="video" autoplay playsinline muted></video>
+  <button id="modeButton">Režim: Polygon</button>
   <canvas id="canvas" resize></canvas>
 
   <script type="text/paperscript" canvas="canvas">
@@ -44,7 +57,7 @@
     var radius = 220;
     var rotationY = 0;
     var velocityY = 0;
-    var mode = 'rotate';
+    var mode = 'polygon'; // polygon | camera
 
     for (var i = 0; i < numSides; i++) {
       var angle = (i / numSides) * Math.PI * 2;
@@ -66,7 +79,7 @@
 
     var shape = new Path();
     shape.strokeColor = '#ffffff';
-    shape.fillColor = '#444';
+    shape.fillColor = '#333';
     shape.strokeWidth = 5;
     for (var i = 0; i < basePoints.length; i++) shape.add(project(basePoints[i]));
     shape.closed = true;
@@ -97,20 +110,32 @@
     function onMouseDown(event) {
       isDragging = true;
       lastX = event.point.x;
-      if (mode === 'deform') deformIndex = findNearestVertex(event.point);
+      deformIndex = findNearestVertex(event.point);
     }
 
     function onMouseDrag(event) {
       if (!isDragging) return;
-      if (mode === 'rotate') {
+      // v režimu polygon: současně deformuj i rotuj
+      if (mode === 'polygon') {
         rotationY += event.delta.x * 0.01;
         velocityY = event.delta.x * 0.005;
-      } else if (mode === 'deform' && deformIndex >= 0) {
-        basePoints[deformIndex].x += event.delta.x * 0.5;
-        basePoints[deformIndex].y += event.delta.y * 0.5;
-        basePoints[deformIndex].z += Math.sin(event.delta.x * 0.05) * 20;
+
+        if (deformIndex >= 0) {
+          basePoints[deformIndex].x += event.delta.x * 0.5;
+          basePoints[deformIndex].y += event.delta.y * 0.5;
+          basePoints[deformIndex].z += Math.sin(event.delta.x * 0.05) * 20;
+        }
+        redrawShape();
       }
-      redrawShape();
+      // v režimu kamera: deformuj živý obraz (graficky – zde posunujeme body masky)
+      else if (mode === 'camera') {
+        if (!deformShape) return;
+        for (var i = 0; i < deformShape.segments.length; i++) {
+          var seg = deformShape.segments[i];
+          var dist = seg.point.getDistance(event.point);
+          if (dist < 100) seg.point = seg.point.add(event.delta.multiply(0.3));
+        }
+      }
     }
 
     function onMouseUp(event) {
@@ -119,19 +144,47 @@
     }
 
     function onFrame(event) {
-      if (!isDragging && mode === 'rotate') {
+      if (!isDragging && mode === 'polygon') {
         rotationY += velocityY;
-        velocityY *= 0.95; // tlumení
+        velocityY *= 0.95;
         if (Math.abs(velocityY) < 0.0001) velocityY = 0;
         redrawShape();
       }
     }
 
+    // Deformační tvar pro kamerový režim
+    var deformShape = new Path.Circle(view.center, 200);
+    deformShape.strokeColor = 'rgba(255,255,255,0.5)';
+    deformShape.fillColor = 'rgba(255,255,255,0.1)';
+    deformShape.visible = false;
+
     // Přepínací tlačítko režimů
     var button = document.getElementById('modeButton');
-    button.addEventListener('click', function() {
-      mode = (mode === 'rotate') ? 'deform' : 'rotate';
-      button.textContent = 'Režim: ' + (mode === 'rotate' ? 'Rotace' : 'Deformace');
+    var video = document.getElementById('video');
+    var stream = null;
+
+    button.addEventListener('click', async function() {
+      if (mode === 'polygon') {
+        mode = 'camera';
+        button.textContent = 'Režim: Kamera';
+        shape.visible = false;
+        deformShape.visible = true;
+        video.style.display = 'block';
+        if (!stream) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+          } catch (err) {
+            alert('Nelze získat přístup ke kameře: ' + err);
+          }
+        }
+      } else {
+        mode = 'polygon';
+        button.textContent = 'Režim: Polygon';
+        shape.visible = true;
+        deformShape.visible = false;
+        video.style.display = 'none';
+      }
     });
   </script>
 </body>
