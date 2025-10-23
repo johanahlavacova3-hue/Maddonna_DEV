@@ -47,8 +47,10 @@
   const ctx = canvas.getContext('2d');
   const video = document.getElementById('video');
   const toggle = document.getElementById('toggle');
+
   let mode = 'mesh';
   let rotationY = 0;
+  let targetRotation = 0;
   let isDragging = false;
   let deforming = false;
   let lastX = 0, lastY = 0;
@@ -58,12 +60,19 @@
   const basePoints = [];
   const numSides = 6;
   const radius = 150;
+
+  // stabilní UV souřadnice pro video mapování
+  const textureUV = [];
   for (let i = 0; i < numSides; i++) {
     const angle = (i / numSides) * Math.PI * 2;
     basePoints.push({ 
       x: Math.cos(angle) * radius,
       y: Math.sin(angle) * radius,
       z: Math.sin(angle) * 40
+    });
+    textureUV.push({
+      u: 0.5 + 0.45 * Math.cos(angle),
+      v: 0.5 + 0.45 * Math.sin(angle)
     });
   }
 
@@ -111,17 +120,26 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const pts = basePoints.map(project);
 
-    // rozdělení šestiúhelníku na trojúhelníky od středu
     const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
     const cy = pts.reduce((a, p) => a + p.y, 0) / pts.length;
+
+    const cw = video.videoWidth;
+    const ch = video.videoHeight;
 
     for (let i = 0; i < pts.length; i++) {
       const p1 = pts[i];
       const p2 = pts[(i + 1) % pts.length];
-      drawTriangleWarp(video, cx, cy, p1.x, p1.y, p2.x, p2.y);
+
+      const uv0 = { x: cw / 2, y: ch / 2 };
+      const uv1 = { x: textureUV[i].u * cw, y: textureUV[i].v * ch };
+      const uv2 = { x: textureUV[(i + 1) % pts.length].u * cw, y: textureUV[(i + 1) % pts.length].v * ch };
+
+      drawTriangleWarp(video,
+        uv0.x, uv0.y, uv1.x, uv1.y, uv2.x, uv2.y,
+        cx, cy, p1.x, p1.y, p2.x, p2.y
+      );
     }
 
-    // červené vrcholy
     for (const p of pts) {
       ctx.beginPath();
       ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
@@ -130,33 +148,25 @@
     }
   }
 
-  // jednoduché "warpování" trojúhelníku
-  function drawTriangleWarp(img, x0, y0, x1, y1, x2, y2) {
-    const w = img.videoWidth;
-    const h = img.videoHeight;
-    const sx0 = 0.5 * w, sy0 = 0.5 * h;
-    const sx1 = w * Math.random(), sy1 = h * Math.random();
-    const sx2 = w * Math.random(), sy2 = h * Math.random();
-
+  function drawTriangleWarp(img, sx0, sy0, sx1, sy1, sx2, sy2, dx0, dy0, dx1, dy1, dx2, dy2) {
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
-    ctx.lineTo(x2, y2);
+    ctx.moveTo(dx0, dy0);
+    ctx.lineTo(dx1, dy1);
+    ctx.lineTo(dx2, dy2);
     ctx.closePath();
     ctx.clip();
 
-    // transformace: posun obrazu do trojúhelníku
     const denom = (sx0 * (sy1 - sy2) + sx1 * (sy2 - sy0) + sx2 * (sy0 - sy1));
     if (denom === 0) return;
 
-    const a = ((x0 * (sy1 - sy2)) + (x1 * (sy2 - sy0)) + (x2 * (sy0 - sy1))) / denom;
-    const b = ((y0 * (sy1 - sy2)) + (y1 * (sy2 - sy0)) + (y2 * (sy0 - sy1))) / denom;
-    const c = ((sx0 * (x1 * y2 - x2 * y1)) + (sx1 * (x2 * y0 - x0 * y2)) + (sx2 * (x0 * y1 - x1 * y0))) / denom;
+    const a = ((dx0 * (sy1 - sy2)) + (dx1 * (sy2 - sy0)) + (dx2 * (sy0 - sy1))) / denom;
+    const b = ((dy0 * (sy1 - sy2)) + (dy1 * (sy2 - sy0)) + (dy2 * (sy0 - sy1))) / denom;
+    const c = ((sx0 * (dx1 * dy2 - dx2 * dy1)) + (sx1 * (dx2 * dy0 - dx0 * dy2)) + (sx2 * (dx0 * dy1 - dx1 * dy0))) / denom;
 
-    const d = ((x0 * (sx1 - sx2)) + (x1 * (sx2 - sx0)) + (x2 * (sx0 - sx1))) / denom;
-    const e = ((y0 * (sx1 - sx2)) + (y1 * (sx2 - sx0)) + (y2 * (sx0 - sx1))) / denom;
-    const f = ((sy0 * (x1 * y2 - x2 * y1)) + (sy1 * (x2 * y0 - x0 * y2)) + (sy2 * (x0 * y1 - x1 * y0))) / denom;
+    const d = ((dx0 * (sx1 - sx2)) + (dx1 * (sx2 - sx0)) + (dx2 * (sx0 - sx1))) / denom;
+    const e = ((dy0 * (sx1 - sx2)) + (dy1 * (sx2 - sx0)) + (dy2 * (sx0 - sx1))) / denom;
+    const f = ((sy0 * (dx1 * dy2 - dx2 * dy1)) + (sy1 * (dx2 * dy0 - dx0 * dy2)) + (sy2 * (dx0 * dy1 - dx1 * dy0))) / denom;
 
     ctx.transform(a, b, d, e, c, f);
     ctx.drawImage(img, 0, 0);
@@ -164,6 +174,7 @@
   }
 
   function loop() {
+    rotationY += (targetRotation - rotationY) * 0.1; // plynulý damping
     if (mode === 'mesh') drawMesh();
     else drawCameraMesh();
     requestAnimationFrame(loop);
@@ -195,9 +206,9 @@
     if (deforming) {
       basePoints[deformIndex].x += (e.clientX - lastX) * 0.5;
       basePoints[deformIndex].y += (e.clientY - lastY) * 0.5;
-      basePoints[deformIndex].z += Math.sin((e.clientX - lastX) * 0.05) * 20;
+      basePoints[deformIndex].z += Math.sin((e.clientX - lastX) * 0.05) * 10;
     } else if (isDragging) {
-      rotationY += (e.clientX - lastX) * 0.01;
+      targetRotation += (e.clientX - lastX) * 0.01;
     }
     lastX = e.clientX;
     lastY = e.clientY;
