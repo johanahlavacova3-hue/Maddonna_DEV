@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Kubistická Kamera – Stabilní verze</title>
+<title>Kubistická Kamera – Deformace obrazu</title>
 <style>
   html, body {
     margin: 0;
@@ -45,6 +45,7 @@
   const ctx = canvas.getContext('2d');
   const video = document.getElementById('video');
   const toggle = document.getElementById('toggle');
+
   let mode = 'mesh';
   let rotationY = 0, targetRotation = 0;
   let isDragging = false, deforming = false;
@@ -53,10 +54,11 @@
 
   const basePoints = [];
   const numSides = 6;
-  const radius = 150;
+  const radius = 160;
+
   for (let i = 0; i < numSides; i++) {
     const angle = (i / numSides) * Math.PI * 2;
-    basePoints.push({ 
+    basePoints.push({
       x: Math.cos(angle) * radius,
       y: Math.sin(angle) * radius,
       z: Math.sin(angle) * 40
@@ -76,7 +78,10 @@
     const x = p.x * cosY - p.z * sinY;
     const z = p.x * sinY + p.z * cosY;
     const scale = 1 / (1 + z / 300);
-    return { x: canvas.width / 2 + x * scale, y: canvas.height / 2 + p.y * scale };
+    return {
+      x: canvas.width / 2 + x * scale,
+      y: canvas.height / 2 + p.y * scale
+    };
   }
 
   function drawMesh() {
@@ -91,6 +96,7 @@
     ctx.fillStyle = "rgba(255,255,255,0.05)";
     ctx.fill();
     ctx.stroke();
+
     for (const p of pts) {
       ctx.beginPath();
       ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
@@ -106,41 +112,55 @@
     const pts = basePoints.map(project);
     const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
     const cy = pts.reduce((a, p) => a + p.y, 0) / pts.length;
-    const size = radius * 2;
 
-    // promítnutí videa do tvaru (klip)
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-    ctx.closePath();
-    ctx.clip();
-
-    // kamera se kreslí uvnitř polygonu
-    ctx.drawImage(
-      video,
-      canvas.width / 2 - size / 2,
-      canvas.height / 2 - size / 2,
-      size,
-      size
-    );
-    ctx.restore();
-
-    // obrys
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-    ctx.closePath();
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    // rozdělení šestiúhelníku na trojúhelníky od středu
+    for (let i = 0; i < pts.length; i++) {
+      const p1 = pts[i];
+      const p2 = pts[(i + 1) % pts.length];
+      drawTriangleWarp(video, cx, cy, p1.x, p1.y, p2.x, p2.y);
+    }
 
     for (const p of pts) {
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+      ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
       ctx.fillStyle = "#ff4d4d";
       ctx.fill();
     }
+  }
+
+  // každá trojúhelníková část obrazu má vlastní transformaci
+  function drawTriangleWarp(img, x0, y0, x1, y1, x2, y2) {
+    const w = img.videoWidth;
+    const h = img.videoHeight;
+
+    // vyber stabilní část obrazu (bez random)
+    const sx0 = w / 2, sy0 = h / 2;
+    const sx1 = w * 0.2 + (x1 - x0) * 0.1;
+    const sy1 = h * 0.2 + (y1 - y0) * 0.1;
+    const sx2 = w * 0.8 + (x2 - x0) * 0.1;
+    const sy2 = h * 0.8 + (y2 - y0) * 0.1;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.closePath();
+    ctx.clip();
+
+    // afinní transformace (přibližná, ale vizuálně stabilní)
+    const denom = (sx0 * (sy1 - sy2) + sx1 * (sy2 - sy0) + sx2 * (sy0 - sy1));
+    if (denom === 0) return;
+    const a = ((x0 * (sy1 - sy2)) + (x1 * (sy2 - sy0)) + (x2 * (sy0 - sy1))) / denom;
+    const b = ((y0 * (sy1 - sy2)) + (y1 * (sy2 - sy0)) + (y2 * (sy0 - sy1))) / denom;
+    const c = ((sx0 * (x1 * y2 - x2 * y1)) + (sx1 * (x2 * y0 - x0 * y2)) + (sx2 * (x0 * y1 - x1 * y0))) / denom;
+    const d = ((x0 * (sx1 - sx2)) + (x1 * (sx2 - sx0)) + (x2 * (sx0 - sx1))) / denom;
+    const e = ((y0 * (sx1 - sx2)) + (y1 * (sx2 - sx0)) + (y2 * (sx0 - sx1))) / denom;
+    const f = ((sy0 * (x1 * y2 - x2 * y1)) + (sy1 * (x2 * y0 - x0 * y2)) + (sy2 * (x0 * y1 - x1 * y0))) / denom;
+
+    ctx.transform(a, b, d, e, c, f);
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
   }
 
   function loop() {
@@ -171,7 +191,7 @@
     if (deforming) {
       basePoints[deformIndex].x += (e.clientX - lastX) * 0.5;
       basePoints[deformIndex].y += (e.clientY - lastY) * 0.5;
-      basePoints[deformIndex].z += Math.sin((e.clientX - lastX) * 0.05) * 10;
+      basePoints[deformIndex].z += Math.sin((e.clientX - lastX) * 0.05) * 20;
     } else if (isDragging) {
       targetRotation += (e.clientX - lastX) * 0.01;
     }
