@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Černá Madonna – Kubistická Kamera</title>
+<title>Kubistická Kamera – Stabilní verze</title>
 <style>
   html, body {
     margin: 0;
@@ -32,9 +32,7 @@
     cursor: pointer;
     z-index: 2;
   }
-  video {
-    display: none;
-  }
+  video { display: none; }
 </style>
 </head>
 <body>
@@ -47,32 +45,21 @@
   const ctx = canvas.getContext('2d');
   const video = document.getElementById('video');
   const toggle = document.getElementById('toggle');
-
   let mode = 'mesh';
-  let rotationY = 0;
-  let targetRotation = 0;
-  let isDragging = false;
-  let deforming = false;
-  let lastX = 0, lastY = 0;
-  let deformIndex = -1;
+  let rotationY = 0, targetRotation = 0;
+  let isDragging = false, deforming = false;
+  let lastX = 0, lastY = 0, deformIndex = -1;
   let videoReady = false;
 
   const basePoints = [];
   const numSides = 6;
   const radius = 150;
-
-  // stabilní UV souřadnice pro video mapování
-  const textureUV = [];
   for (let i = 0; i < numSides; i++) {
     const angle = (i / numSides) * Math.PI * 2;
     basePoints.push({ 
       x: Math.cos(angle) * radius,
       y: Math.sin(angle) * radius,
       z: Math.sin(angle) * 40
-    });
-    textureUV.push({
-      u: 0.5 + 0.45 * Math.cos(angle),
-      v: 0.5 + 0.45 * Math.sin(angle)
     });
   }
 
@@ -89,10 +76,7 @@
     const x = p.x * cosY - p.z * sinY;
     const z = p.x * sinY + p.z * cosY;
     const scale = 1 / (1 + z / 300);
-    return {
-      x: canvas.width / 2 + x * scale,
-      y: canvas.height / 2 + p.y * scale
-    };
+    return { x: canvas.width / 2 + x * scale, y: canvas.height / 2 + p.y * scale };
   }
 
   function drawMesh() {
@@ -116,87 +100,68 @@
   }
 
   function drawCameraMesh() {
-    if (!videoReady) return;
+    if (!videoReady || video.videoWidth === 0) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const pts = basePoints.map(project);
 
+    const pts = basePoints.map(project);
     const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
     const cy = pts.reduce((a, p) => a + p.y, 0) / pts.length;
+    const size = radius * 2;
 
-    const cw = video.videoWidth;
-    const ch = video.videoHeight;
+    // promítnutí videa do tvaru (klip)
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+    ctx.clip();
 
-    for (let i = 0; i < pts.length; i++) {
-      const p1 = pts[i];
-      const p2 = pts[(i + 1) % pts.length];
+    // kamera se kreslí uvnitř polygonu
+    ctx.drawImage(
+      video,
+      canvas.width / 2 - size / 2,
+      canvas.height / 2 - size / 2,
+      size,
+      size
+    );
+    ctx.restore();
 
-      const uv0 = { x: cw / 2, y: ch / 2 };
-      const uv1 = { x: textureUV[i].u * cw, y: textureUV[i].v * ch };
-      const uv2 = { x: textureUV[(i + 1) % pts.length].u * cw, y: textureUV[(i + 1) % pts.length].v * ch };
-
-      drawTriangleWarp(video,
-        uv0.x, uv0.y, uv1.x, uv1.y, uv2.x, uv2.y,
-        cx, cy, p1.x, p1.y, p2.x, p2.y
-      );
-    }
+    // obrys
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 3;
+    ctx.stroke();
 
     for (const p of pts) {
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
       ctx.fillStyle = "#ff4d4d";
       ctx.fill();
     }
   }
 
-  function drawTriangleWarp(img, sx0, sy0, sx1, sy1, sx2, sy2, dx0, dy0, dx1, dy1, dx2, dy2) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(dx0, dy0);
-    ctx.lineTo(dx1, dy1);
-    ctx.lineTo(dx2, dy2);
-    ctx.closePath();
-    ctx.clip();
-
-    const denom = (sx0 * (sy1 - sy2) + sx1 * (sy2 - sy0) + sx2 * (sy0 - sy1));
-    if (denom === 0) return;
-
-    const a = ((dx0 * (sy1 - sy2)) + (dx1 * (sy2 - sy0)) + (dx2 * (sy0 - sy1))) / denom;
-    const b = ((dy0 * (sy1 - sy2)) + (dy1 * (sy2 - sy0)) + (dy2 * (sy0 - sy1))) / denom;
-    const c = ((sx0 * (dx1 * dy2 - dx2 * dy1)) + (sx1 * (dx2 * dy0 - dx0 * dy2)) + (sx2 * (dx0 * dy1 - dx1 * dy0))) / denom;
-
-    const d = ((dx0 * (sx1 - sx2)) + (dx1 * (sx2 - sx0)) + (dx2 * (sx0 - sx1))) / denom;
-    const e = ((dy0 * (sx1 - sx2)) + (dy1 * (sx2 - sx0)) + (dy2 * (sx0 - sx1))) / denom;
-    const f = ((sy0 * (dx1 * dy2 - dx2 * dy1)) + (sy1 * (dx2 * dy0 - dx0 * dy2)) + (sy2 * (dx0 * dy1 - dx1 * dy0))) / denom;
-
-    ctx.transform(a, b, d, e, c, f);
-    ctx.drawImage(img, 0, 0);
-    ctx.restore();
-  }
-
   function loop() {
-    rotationY += (targetRotation - rotationY) * 0.1; // plynulý damping
+    rotationY += (targetRotation - rotationY) * 0.1;
     if (mode === 'mesh') drawMesh();
     else drawCameraMesh();
     requestAnimationFrame(loop);
   }
 
   function getNearestVertex(x, y) {
-    let nearest = -1;
-    let minDist = 9999;
+    let nearest = -1, minDist = 9999;
     const pts = basePoints.map(project);
     pts.forEach((p, i) => {
       const d = Math.hypot(p.x - x, p.y - y);
-      if (d < minDist && d < 40) {
-        minDist = d;
-        nearest = i;
-      }
+      if (d < minDist && d < 40) { minDist = d; nearest = i; }
     });
     return nearest;
   }
 
   canvas.addEventListener('pointerdown', e => {
-    lastX = e.clientX;
-    lastY = e.clientY;
+    lastX = e.clientX; lastY = e.clientY;
     deformIndex = getNearestVertex(e.clientX, e.clientY);
     deforming = deformIndex >= 0;
     isDragging = !deforming;
@@ -210,30 +175,25 @@
     } else if (isDragging) {
       targetRotation += (e.clientX - lastX) * 0.01;
     }
-    lastX = e.clientX;
-    lastY = e.clientY;
+    lastX = e.clientX; lastY = e.clientY;
   });
 
   canvas.addEventListener('pointerup', () => {
-    deforming = false;
-    isDragging = false;
-    deformIndex = -1;
+    deforming = false; isDragging = false; deformIndex = -1;
   });
 
   toggle.onclick = async () => {
     if (mode === 'mesh') {
       mode = 'camera';
       toggle.textContent = 'Mode: camera';
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-          video.srcObject = stream;
-          video.play();
-          video.onloadeddata = () => (videoReady = true);
-        } catch (err) {
-          alert("Kamera nedostupná: " + err.message);
-          mode = 'mesh';
-        }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream;
+        video.play();
+        video.onloadeddata = () => (videoReady = true);
+      } catch (err) {
+        alert("Kamera nedostupná: " + err.message);
+        mode = 'mesh';
       }
     } else {
       mode = 'mesh';
