@@ -30,15 +30,70 @@
     font-family: sans-serif;
     font-size: 14px;
     cursor: pointer;
-    z-index: 2;
+    z-index: 3;
   }
   video {
     display: none;
+  }
+
+  /* kontejnér pro nýty */
+  #handles {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .handle {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    margin-left: -13px;
+    margin-top: -13px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    touch-action: none;
+  }
+
+  .handle .ring {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2px solid #3aa0ff;
+    background: transparent;
+    transform-origin: center;
+    transition: transform 160ms, border-color 160ms;
+    filter: drop-shadow(0 0 10px rgba(58,160,255,0.4));
+  }
+
+  .handle .pulse {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(58,160,255,0.25), rgba(58,160,255,0.05), transparent 70%);
+    animation: pulse 1.6s ease-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(0.9); opacity: 0.9; }
+    50% { transform: scale(1.2); opacity: 0.6; }
+    100% { transform: scale(1.0); opacity: 0.8; }
+  }
+
+  .handle:active .ring {
+    transform: scale(0.85);
+    border-color: #0f6fcc;
   }
 </style>
 </head>
 <body>
   <canvas id="canvas"></canvas>
+  <div id="handles"></div>
   <video id="video" autoplay playsinline></video>
   <div id="toggle">Mode: mesh</div>
 
@@ -47,6 +102,8 @@
   const ctx = canvas.getContext('2d');
   const video = document.getElementById('video');
   const toggle = document.getElementById('toggle');
+  const handlesContainer = document.getElementById('handles');
+
   let mode = 'mesh';
   let rotationY = 0;
   let isDragging = false;
@@ -64,6 +121,39 @@
       x: Math.cos(angle) * radius,
       y: Math.sin(angle) * radius,
       z: Math.sin(angle) * 40
+    });
+  }
+
+  // vytvoření HTML nýtků
+  const handleEls = [];
+  for (let i = 0; i < numSides; i++) {
+    const el = document.createElement('div');
+    el.className = 'handle';
+    el.dataset.index = i;
+    el.innerHTML = '<div class="pulse"></div><div class="ring"></div>';
+    handlesContainer.appendChild(el);
+    handleEls.push(el);
+
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      deformIndex = parseInt(el.dataset.index);
+      deforming = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      el.setPointerCapture(e.pointerId);
+    });
+    el.addEventListener('pointerup', e => {
+      deforming = false;
+      deformIndex = -1;
+      el.releasePointerCapture(e.pointerId);
+    });
+    el.addEventListener('pointermove', e => {
+      if (!deforming || deformIndex !== parseInt(el.dataset.index)) return;
+      basePoints[deformIndex].x += (e.clientX - lastX) * 0.5;
+      basePoints[deformIndex].y += (e.clientY - lastY) * 0.5;
+      basePoints[deformIndex].z += Math.sin((e.clientX - lastX) * 0.05) * 20;
+      lastX = e.clientX;
+      lastY = e.clientY;
     });
   }
 
@@ -98,20 +188,13 @@
     ctx.fillStyle = "rgba(255,255,255,0.05)";
     ctx.fill();
     ctx.stroke();
-    for (const p of pts) {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
-      ctx.fillStyle = "#ff4d4d";
-      ctx.fill();
-    }
+    updateHandles();
   }
 
   function drawCameraMesh() {
     if (!videoReady) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const pts = basePoints.map(project);
-
-    // rozdělení šestiúhelníku na trojúhelníky od středu
     const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
     const cy = pts.reduce((a, p) => a + p.y, 0) / pts.length;
 
@@ -120,23 +203,15 @@
       const p2 = pts[(i + 1) % pts.length];
       drawTriangleWarp(video, cx, cy, p1.x, p1.y, p2.x, p2.y);
     }
-
-    // červené vrcholy
-    for (const p of pts) {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-      ctx.fillStyle = "#ff4d4d";
-      ctx.fill();
-    }
+    updateHandles();
   }
 
-  // jednoduché "warpování" trojúhelníku
   function drawTriangleWarp(img, x0, y0, x1, y1, x2, y2) {
     const w = img.videoWidth;
     const h = img.videoHeight;
-    const sx0 = 0.5 * w, sy0 = 0.5 * h;
-    const sx1 = w * Math.random(), sy1 = h * Math.random();
-    const sx2 = w * Math.random(), sy2 = h * Math.random();
+    const sx0 = w/2, sy0 = h/2;
+    const sx1 = w*Math.random(), sy1 = h*Math.random();
+    const sx2 = w*Math.random(), sy2 = h*Math.random();
 
     ctx.save();
     ctx.beginPath();
@@ -146,7 +221,6 @@
     ctx.closePath();
     ctx.clip();
 
-    // transformace: posun obrazu do trojúhelníku
     const denom = (sx0 * (sy1 - sy2) + sx1 * (sy2 - sy0) + sx2 * (sy0 - sy1));
     if (denom === 0) return;
 
@@ -163,24 +237,11 @@
     ctx.restore();
   }
 
-  function loop() {
-    if (mode === 'mesh') drawMesh();
-    else drawCameraMesh();
-    requestAnimationFrame(loop);
-  }
-
-  function getNearestVertex(x, y) {
-    let nearest = -1;
-    let minDist = 9999;
+  function updateHandles() {
     const pts = basePoints.map(project);
-    pts.forEach((p, i) => {
-      const d = Math.hypot(p.x - x, p.y - y);
-      if (d < minDist && d < 40) {
-        minDist = d;
-        nearest = i;
-      }
-    });
-    return nearest;
+    for (let i = 0; i < handleEls.length; i++) {
+      handleEls[i].style.transform = `translate(${pts[i].x}px, ${pts[i].y}px)`;
+    }
   }
 
   canvas.addEventListener('pointerdown', e => {
@@ -209,20 +270,32 @@
     deformIndex = -1;
   });
 
+  function getNearestVertex(x, y) {
+    let nearest = -1;
+    let minDist = 9999;
+    const pts = basePoints.map(project);
+    pts.forEach((p, i) => {
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (d < minDist && d < 40) {
+        minDist = d;
+        nearest = i;
+      }
+    });
+    return nearest;
+  }
+
   toggle.onclick = async () => {
     if (mode === 'mesh') {
       mode = 'camera';
       toggle.textContent = 'Mode: camera';
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-          video.srcObject = stream;
-          video.play();
-          video.onloadeddata = () => (videoReady = true);
-        } catch (err) {
-          alert("Kamera nedostupná: " + err.message);
-          mode = 'mesh';
-        }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream;
+        await video.play();
+        videoReady = true;
+      } catch (err) {
+        alert("Kamera nedostupná: " + err.message);
+        mode = 'mesh';
       }
     } else {
       mode = 'mesh';
@@ -234,6 +307,12 @@
       videoReady = false;
     }
   };
+
+  function loop() {
+    if (mode === 'mesh') drawMesh();
+    else drawCameraMesh();
+    requestAnimationFrame(loop);
+  }
 
   loop();
   </script>
