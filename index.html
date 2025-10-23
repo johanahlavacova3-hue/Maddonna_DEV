@@ -1,183 +1,196 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Černá Madonna - WebApp (Camera Mode)</title>
-  <script src="https://unpkg.com/paper"></script>
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background: #0F0F0F;
-      height: 100%;
-      width: 100%;
-    }
-    canvas {
-      width: 100%;
-      height: 100%;
-      touch-action: none;
-    }
-    #toggle {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(255, 255, 255, 0.1);
-      color: white;
-      border: 1px solid #aaa;
-      border-radius: 10px;
-      padding: 8px 14px;
-      cursor: pointer;
-      font-family: sans-serif;
-      font-size: 14px;
-    }
-    video {
-      display: none;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Černá Madonna</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #0f0f0f;
+    overflow: hidden;
+    height: 100%;
+    width: 100%;
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+  #toggle {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid #aaa;
+    border-radius: 12px;
+    padding: 8px 14px;
+    font-family: sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 2;
+  }
+  video {
+    display: none;
+  }
+</style>
 </head>
 <body>
-  <canvas id="canvas" resize></canvas>
+  <canvas id="canvas"></canvas>
   <video id="video" autoplay playsinline></video>
   <div id="toggle">Mode: mesh</div>
 
-  <script type="text/paperscript" canvas="canvas">
-    var mode = 'mesh'; // 'mesh' nebo 'camera'
-    var video = document.getElementById('video');
-    var basePoints = [];
-    var numSides = 6;
-    var radius = 220;
-    var rotationY = 0;
-    var imgRaster;
+  <script>
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const video = document.getElementById('video');
+  const toggle = document.getElementById('toggle');
+  let mode = 'mesh';
+  let rotationY = 0;
+  let isDragging = false;
+  let deforming = false;
+  let lastX = 0, lastY = 0;
+  let deformIndex = -1;
 
-    for (var i = 0; i < numSides; i++) {
-      var angle = (i / numSides) * Math.PI * 2;
-      basePoints.push({ 
-        x: Math.cos(angle) * radius,
-        y: Math.sin(angle) * radius,
-        z: Math.sin(angle) * 40
-      });
+  const basePoints = [];
+  const numSides = 6;
+  const radius = 120;
+  for (let i = 0; i < numSides; i++) {
+    const angle = (i / numSides) * Math.PI * 2;
+    basePoints.push({ 
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+      z: Math.sin(angle) * 40
+    });
+  }
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function project(p) {
+    const cosY = Math.cos(rotationY);
+    const sinY = Math.sin(rotationY);
+    const x = p.x * cosY - p.z * sinY;
+    const z = p.x * sinY + p.z * cosY;
+    const scale = 1 / (1 + z / 300);
+    return {
+      x: canvas.width / 2 + x * scale,
+      y: canvas.height / 2 + p.y * scale
+    };
+  }
+
+  function drawMesh() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const pts = basePoints.map(project);
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 4;
+    ctx.fillStyle = "rgba(255,255,255,0.05)";
+    ctx.fill();
+    ctx.stroke();
+
+    // malé body pro indikaci
+    for (const p of pts) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 6, 0, Math.PI*2);
+      ctx.fillStyle = "#ff4d4d";
+      ctx.fill();
     }
+  }
 
-    function project(p) {
-      var cosY = Math.cos(rotationY);
-      var sinY = Math.sin(rotationY);
-      var x = p.x * cosY - p.z * sinY;
-      var z = p.x * sinY + p.z * cosY;
-      var scale = 1 / (1 + z / 300);
-      return new Point(view.center.x + x * scale, view.center.y + p.y * scale);
+  function drawCamera() {
+    if (video.readyState === 4) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const cx = canvas.width/2, cy = canvas.height/2;
+      // deformace podle basePoints
+      const wobble = Math.sin(Date.now()/400) * 0.03;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.transform(1 + wobble, 0, 0, 1 - wobble, 0, 0);
+      ctx.drawImage(video, -cx, -cy, canvas.width, canvas.height);
+      ctx.restore();
     }
+  }
 
-    var shape = new Path();
-    shape.strokeColor = '#ffffff';
-    shape.fillOpacity = 0.5;
-    shape.strokeWidth = 5;
-    for (var i = 0; i < basePoints.length; i++) shape.add(project(basePoints[i]));
-    shape.closed = true;
+  function loop() {
+    if (mode === 'mesh') drawMesh();
+    else drawCamera();
+    requestAnimationFrame(loop);
+  }
 
-    // Režim kamery — vložíme raster, který se deformuje
-    function initCamera() {
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-          video.srcObject = stream;
-          video.play();
-          imgRaster = new Raster(video);
-          imgRaster.position = view.center;
-          imgRaster.opacity = 0.9;
-          imgRaster.scale(1.3);
-        })
-        .catch(err => {
-          console.error("Kamera nedostupná:", err);
-        });
-    }
-
-    function redrawShape() {
-      shape.removeSegments();
-      for (var i = 0; i < basePoints.length; i++) shape.add(project(basePoints[i]));
-      if (imgRaster && mode === 'camera') {
-        imgRaster.position = view.center;
-      }
-    }
-
-    var isDragging = false;
-    var deforming = false;
-    var lastX = 0;
-    var slicerPath;
-    var deformIndex = -1;
-    var deformTimeout;
-
-    function findNearestVertex(point) {
-      var minDist = 9999;
-      var nearest = -1;
-      for (var i = 0; i < basePoints.length; i++) {
-        var screen = project(basePoints[i]);
-        var d = point.getDistance(screen);
-        if (d < minDist && d < 40) {
-          minDist = d;
-          nearest = i;
-        }
-      }
-      return nearest;
-    }
-
-    function onMouseDown(event) {
-      deformTimeout = setTimeout(function() {
-        deforming = true;
-        deformIndex = findNearestVertex(event.point);
-      }, 200);
-
-      isDragging = true;
-      lastX = event.point.x;
-    }
-
-    function onMouseDrag(event) {
-      if (deforming && deformIndex >= 0) {
-        basePoints[deformIndex].x += event.delta.x * 0.5;
-        basePoints[deformIndex].y += event.delta.y * 0.5;
-        basePoints[deformIndex].z += Math.sin(event.delta.x * 0.05) * 20;
-
-        // Pokud je zapnutý camera mode, deformujeme raster
-        if (imgRaster && mode === 'camera') {
-          imgRaster.skew(event.delta.x * 0.01, event.delta.y * 0.01);
-        }
-
-        redrawShape();
-        return;
-      }
-      if (isDragging) {
-        rotationY += (event.point.x - lastX) * 0.01;
-        lastX = event.point.x;
-        redrawShape();
-      }
-    }
-
-    function onMouseUp(event) {
-      clearTimeout(deformTimeout);
-      deforming = false;
-      isDragging = false;
-      deformIndex = -1;
-    }
-
-    function randomColor() {
-      var palette = ['#d6b88d', '#b8a47d', '#9a8b72', '#7a6b60', '#594b45'];
-      return palette[Math.floor(Math.random() * palette.length)];
-    }
-
-    // Přepínání módů
-    document.getElementById('toggle').addEventListener('click', function() {
-      if (mode === 'mesh') {
-        mode = 'camera';
-        this.textContent = 'Mode: camera';
-        shape.visible = false;
-        initCamera();
-      } else {
-        mode = 'mesh';
-        this.textContent = 'Mode: mesh';
-        shape.visible = true;
-        if (imgRaster) imgRaster.remove();
+  function getNearestVertex(x, y) {
+    let nearest = -1;
+    let minDist = 9999;
+    const pts = basePoints.map(project);
+    pts.forEach((p, i) => {
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (d < minDist && d < 40) {
+        minDist = d;
+        nearest = i;
       }
     });
+    return nearest;
+  }
+
+  canvas.addEventListener('pointerdown', e => {
+    lastX = e.clientX;
+    lastY = e.clientY;
+    deformIndex = getNearestVertex(e.clientX, e.clientY);
+    deforming = deformIndex >= 0;
+    isDragging = !deforming;
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    if (deforming) {
+      basePoints[deformIndex].x += (e.clientX - lastX) * 0.5;
+      basePoints[deformIndex].y += (e.clientY - lastY) * 0.5;
+    } else if (isDragging) {
+      rotationY += (e.clientX - lastX) * 0.01;
+    }
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+
+  canvas.addEventListener('pointerup', () => {
+    deforming = false;
+    isDragging = false;
+    deformIndex = -1;
+  });
+
+  toggle.onclick = async () => {
+    if (mode === 'mesh') {
+      mode = 'camera';
+      toggle.textContent = 'Mode: camera';
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          video.srcObject = stream;
+          video.play();
+        } catch (err) {
+          alert("Kamera nedostupná: " + err.message);
+          mode = 'mesh';
+        }
+      }
+    } else {
+      mode = 'mesh';
+      toggle.textContent = 'Mode: mesh';
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+        video.srcObject = null;
+      }
+    }
+  };
+
+  loop();
   </script>
 </body>
 </html>
