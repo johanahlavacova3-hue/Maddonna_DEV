@@ -139,14 +139,15 @@
     updateHandles();
   }
 
-  // stabilní mapování videa do trojúhelníku
   function drawTriangleWarp(img, x0, y0, x1, y1, x2, y2) {
     const w = img.videoWidth;
     const h = img.videoHeight;
-
-    const sx0 = 0, sy0 = 0;
-    const sx1 = w, sy1 = 0;
-    const sx2 = 0, sy2 = h;
+    const sx0 = w / 2 + (x0 - canvas.width/2) / canvas.width * w;
+    const sy0 = h / 2 + (y0 - canvas.height/2) / canvas.height * h;
+    const sx1 = w / 2 + (x1 - canvas.width/2) / canvas.width * w;
+    const sy1 = h / 2 + (y1 - canvas.height/2) / canvas.height * h;
+    const sx2 = w / 2 + (x2 - canvas.width/2) / canvas.width * w;
+    const sy2 = h / 2 + (y2 - canvas.height/2) / canvas.height * h;
 
     ctx.save();
     ctx.beginPath();
@@ -156,19 +157,19 @@
     ctx.closePath();
     ctx.clip();
 
-    const denom = (sx0*(sy1-sy2) + sx1*(sy2-sy0) + sx2*(sy0-sy1));
+    const denom = (sx0 * (sy1 - sy2) + sx1 * (sy2 - sy0) + sx2 * (sy0 - sy1));
     if (denom === 0) return;
 
-    const a = ((x0*(sy1-sy2)) + (x1*(sy2-sy0)) + (x2*(sy0-sy1)))/denom;
-    const b = ((y0*(sy1-sy2)) + (y1*(sy2-sy0)) + (y2*(sy0-sy1)))/denom;
-    const c = ((sx0*(x1*y2 - x2*y1)) + (sx1*(x2*y0 - x0*y2)) + (sx2*(x0*y1 - x1*y0)))/denom;
+    const a = ((x0 * (sy1 - sy2)) + (x1 * (sy2 - sy0)) + (x2 * (sy0 - sy1))) / denom;
+    const b = ((y0 * (sy1 - sy2)) + (y1 * (sy2 - sy0)) + (y2 * (sy0 - sy1))) / denom;
+    const c = ((sx0 * (x1 * y2 - x2 * y1)) + (sx1 * (x2 * y0 - x0 * y2)) + (sx2 * (x0 * y1 - x1 * y0))) / denom;
 
-    const d = ((x0*(sx1-sx2)) + (x1*(sx2-sx0)) + (x2*(sx0-sx1)))/denom;
-    const e = ((y0*(sx1-sx2)) + (y1*(sx2-sx0)) + (y2*(sx0-sx1)))/denom;
-    const f = ((sy0*(x1*y2 - x2*y1)) + (sy1*(x2*y0 - x0*y2)) + (sy2*(x0*y1 - x1*y0)))/denom;
+    const d = ((x0 * (sx1 - sx2)) + (x1 * (sx2 - sx0)) + (x2 * (sx0 - sx1))) / denom;
+    const e = ((y0 * (sx1 - sx2)) + (y1 * (sx2 - sx0)) + (y2 * (sx0 - sx1))) / denom;
+    const f = ((sy0 * (x1 * y2 - x2 * y1)) + (sy1 * (x2 * y0 - x0 * y2)) + (sy2 * (x0 * y1 - x1 * y0))) / denom;
 
     ctx.transform(a, b, d, e, c, f);
-    ctx.drawImage(img, 0, 0, w, h);
+    ctx.drawImage(img, 0, 0);
     ctx.restore();
   }
 
@@ -208,4 +209,31 @@
         video.srcObject = stream;
         await video.play();
         videoReady = true;
-      } catch (err
+      } catch (err) {
+        alert("Kamera nedostupná: " + err.message);
+        mode = 'mesh';
+        toggle.classList.remove('mode-camera');
+        toggle.classList.add('mode-mesh');
+      }
+    } else {
+      mode = 'mesh';
+      toggle.classList.remove('mode-camera');
+      toggle.classList.add('mode-mesh');
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+        video.srcObject = null;
+      }
+      videoReady = false;
+    }
+  };
+
+  function loop() {
+    if (mode === 'mesh') drawMesh();
+    else drawCameraMesh();
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+  </script>
+</body>
+</html>
