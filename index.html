@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Černá Madonna – Kubistická Kamera</title>
+<title>Černá Madonna – 3D Kubistická Kamera</title>
 <style>
   html, body {
     margin: 0;
@@ -103,6 +103,7 @@
 
   let mode = 'mesh';
   let rotationY = 0;
+  let rotationX = 0;
   let isDragging = false;
   let deforming = false;
   let lastX = 0, lastY = 0;
@@ -111,7 +112,7 @@
 
   const basePoints = [];
   const numSides = 6;
-  const radius = 160;
+  const radius = 180;
   for (let i = 0; i < numSides; i++) {
     const angle = (i / numSides) * Math.PI * 2;
     basePoints.push({ 
@@ -161,14 +162,21 @@
   resize();
 
   function project(p) {
+    // Rotace v 3D (X + Y osy)
     const cosY = Math.cos(rotationY);
     const sinY = Math.sin(rotationY);
-    const x = p.x * cosY - p.z * sinY;
-    const z = p.x * sinY + p.z * cosY;
-    const scale = 1 / (1 + z / 300);
+    const cosX = Math.cos(rotationX);
+    const sinX = Math.sin(rotationX);
+
+    let x = p.x * cosY - p.z * sinY;
+    let z = p.x * sinY + p.z * cosY;
+    let y = p.y * cosX - z * sinX;
+    z = p.y * sinX + z * cosX;
+
+    const scale = 1 / (1 + z / 400);
     return {
       x: canvas.width / 2 + x * scale,
-      y: canvas.height / 2 + p.y * scale
+      y: canvas.height / 2 + y * scale
     };
   }
 
@@ -180,7 +188,7 @@
     for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
     ctx.closePath();
     ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3;
     ctx.fillStyle = "rgba(255,255,255,0.05)";
     ctx.fill();
     ctx.stroke();
@@ -195,26 +203,24 @@
     const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
     const cy = pts.reduce((a, p) => a + p.y, 0) / pts.length;
 
-    // Rozděl na trojúhelníky od středu
     for (let i = 0; i < pts.length; i++) {
       const p1 = pts[i];
       const p2 = pts[(i + 1) % pts.length];
-      drawTriangleWarp(video, cx, cy, p1.x, p1.y, p2.x, p2.y, i);
+      drawTriangleWarp(video, cx, cy, p1.x, p1.y, p2.x, p2.y);
     }
     updateHandles();
   }
 
-  // zde se video opravdu "deformuje"
-  function drawTriangleWarp(img, x0, y0, x1, y1, x2, y2, index) {
+  function drawTriangleWarp(img, x0, y0, x1, y1, x2, y2) {
     const w = img.videoWidth;
     const h = img.videoHeight;
 
     const sx0 = w / 2;
     const sy0 = h / 2;
-    const sx1 = w / 2 + (x1 - canvas.width / 2) / 2;
-    const sy1 = h / 2 + (y1 - canvas.height / 2) / 2;
-    const sx2 = w / 2 + (x2 - canvas.width / 2) / 2;
-    const sy2 = h / 2 + (y2 - canvas.height / 2) / 2;
+    const sx1 = w / 2 + (x1 - canvas.width / 2) / 3;
+    const sy1 = h / 2 + (y1 - canvas.height / 2) / 3;
+    const sx2 = w / 2 + (x2 - canvas.width / 2) / 3;
+    const sy2 = h / 2 + (y2 - canvas.height / 2) / 3;
 
     ctx.save();
     ctx.beginPath();
@@ -246,6 +252,25 @@
     }
   }
 
+  canvas.addEventListener('pointerdown', e => {
+    lastX = e.clientX;
+    lastY = e.clientY;
+    isDragging = true;
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    if (isDragging && !deforming) {
+      rotationY += (e.clientX - lastX) * 0.01;
+      rotationX += (e.clientY - lastY) * 0.01;
+    }
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+
+  canvas.addEventListener('pointerup', () => {
+    isDragging = false;
+  });
+
   toggle.onclick = async () => {
     if (mode === 'mesh') {
       mode = 'camera';
@@ -275,6 +300,7 @@
     else drawCameraMesh();
     requestAnimationFrame(loop);
   }
+
   loop();
   </script>
 </body>
