@@ -1,0 +1,159 @@
+/* === GLOBAL === */
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #0f0f0f;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+  font-family: 'Inter', sans-serif;
+  position: relative;
+}
+
+canvas {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  display: block;
+}
+
+/* === MODE TOGGLE BUTTON === */
+#toggle {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 72px;
+  height: 72px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  z-index: 5;
+  transition: opacity 0.2s ease;
+  opacity: 0.9;
+}
+
+#toggle:hover {
+  opacity: 1;
+}
+
+#toggle.mode-mesh {
+  background-image: url('Mesh.png');
+}
+
+#toggle.mode-camera {
+  background-image: url('Camera.png');
+}
+
+/* === LOGO AREA (BOTTOM) === */
+#footer-logos {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  z-index: 4;
+}
+
+#footer-logos a {
+  display: block;
+  margin: 6px auto;
+  opacity: 0.85;
+  transition: opacity 0.2s ease;
+}
+
+#footer-logos a:hover {
+  opacity: 1;
+}
+
+#footer-logos img {
+  display: block;
+  margin: 0 auto;
+  max-width: 120px;
+  height: auto;
+}
+
+/* === HANDLES === */
+#handles {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.handle {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  margin-left: -14px;
+  margin-top: -14px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.handle .ring {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid #5ab8ff;
+  background: transparent;
+  transform-origin: center;
+  filter: drop-shadow(0 0 10px rgba(58,160,255,0.4));
+  transition: transform 160ms, border-color 160ms;
+}
+
+.handle .pulse {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(58,160,255,0.25), rgba(58,160,255,0.05), transparent 70%);
+  animation: pulse 1.6s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.9); opacity: 0.9; }
+  50% { transform: scale(1.2); opacity: 0.6; }
+  100% { transform: scale(1.0); opacity: 0.8; }
+}
+
+.handle:active .ring {
+  transform: scale(0.85);
+  border-color: #fff000;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 600px) {
+  #toggle {
+    width: 60px;
+    height: 60px;
+  }
+
+  #footer-logos img {
+    max-width: 90px;
+  }
+
+  .handle {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+@media (min-width: 900px) {
+  #toggle {
+    width: 90px;
+    height: 90px;
+  }
+
+  #footer-logos img {
+    max-width: 140px;
+  }
+}
