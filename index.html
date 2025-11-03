@@ -4,95 +4,25 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Černá Madonna – Kubistická Kamera</title>
-<style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    background: #0f0f0f;
-    overflow: hidden;
-    height: 100%;
-    width: 100%;
-  }
-  canvas {
-    width: 100%;
-    height: 100%;
-    touch-action: none;
-  }
-  #toggle {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    border: 1px solid #aaa;
-    border-radius: 12px;
-    padding: 8px 14px;
-    font-family: sans-serif;
-    font-size: 14px;
-    cursor: pointer;
-    z-index: 3;
-  }
-  video { display: none; }
-
-  #handles {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    pointer-events: none;
-  }
-
-  .handle {
-    position: absolute;
-    width: 30px;
-    height: 26px;
-    margin-left: -13px;
-    margin-top: -13px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: auto;
-    touch-action: none;
-  }
-
-  .handle .ring {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    border: 2px solid #5ab8ff;
-    background: transparent;
-    transform-origin: center;
-    filter: drop-shadow(0 0 10px rgba(58,160,255,0.4));
-    transition: transform 160ms, border-color 160ms;
-  }
-
-  .handle .pulse {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(58,160,255,0.25), rgba(58,160,255,0.05), transparent 70%);
-    animation: pulse 1.6s ease-out infinite;
-    pointer-events: none;
-  }
-
-  @keyframes pulse {
-    0% { transform: scale(0.9); opacity: 0.9; }
-    50% { transform: scale(1.2); opacity: 0.6; }
-    100% { transform: scale(1.0); opacity: 0.8; }
-  }
-
-  .handle:active .ring {
-    transform: scale(0.85);
-    border-color: #fff000;
-  }
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
   <canvas id="canvas"></canvas>
   <div id="handles"></div>
   <video id="video" autoplay playsinline></video>
-  <div id="toggle">Mode: mesh</div>
+
+  <!-- Tlačítko mode -->
+  <button id="toggle" class="mode-mesh"></button>
+
+  <!-- Spodní loga -->
+  <div id="footer-logos">
+    <a href="https://tvoje-url.cz" target="_blank">
+      <img src="Logos.png" alt="Logo">
+    </a>
+    <a href="https://jh-portfolio.cz" target="_blank">
+      <img src="JH.png" alt="JH">
+    </a>
+  </div>
 
   <script>
   const canvas = document.getElementById('canvas');
@@ -102,7 +32,7 @@
   const handlesContainer = document.getElementById('handles');
 
   let mode = 'mesh';
-  let rotationY = 0;
+  let rotationY = 0, rotationX = 0;
   let isDragging = false;
   let deforming = false;
   let lastX = 0, lastY = 0;
@@ -111,7 +41,7 @@
 
   const basePoints = [];
   const numSides = 6;
-  const radius = 160;
+  const radius = 150;
   for (let i = 0; i < numSides; i++) {
     const angle = (i / numSides) * Math.PI * 2;
     basePoints.push({ 
@@ -121,6 +51,7 @@
     });
   }
 
+  // HTML nýty
   const handleEls = [];
   for (let i = 0; i < numSides; i++) {
     const el = document.createElement('div');
@@ -163,12 +94,18 @@
   function project(p) {
     const cosY = Math.cos(rotationY);
     const sinY = Math.sin(rotationY);
-    const x = p.x * cosY - p.z * sinY;
-    const z = p.x * sinY + p.z * cosY;
+    const cosX = Math.cos(rotationX);
+    const sinX = Math.sin(rotationX);
+
+    let x = p.x * cosY - p.z * sinY;
+    let z = p.x * sinY + p.z * cosY;
+    let y = p.y * cosX - z * sinX;
+    z = p.y * sinX + z * cosX;
+
     const scale = 1 / (1 + z / 300);
     return {
       x: canvas.width / 2 + x * scale,
-      y: canvas.height / 2 + p.y * scale
+      y: canvas.height / 2 + y * scale
     };
   }
 
@@ -180,7 +117,7 @@
     for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
     ctx.closePath();
     ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3;
     ctx.fillStyle = "rgba(255,255,255,0.05)";
     ctx.fill();
     ctx.stroke();
@@ -190,31 +127,27 @@
   function drawCameraMesh() {
     if (!videoReady) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     const pts = basePoints.map(project);
     const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
     const cy = pts.reduce((a, p) => a + p.y, 0) / pts.length;
 
-    // Rozděl na trojúhelníky od středu
     for (let i = 0; i < pts.length; i++) {
       const p1 = pts[i];
       const p2 = pts[(i + 1) % pts.length];
-      drawTriangleWarp(video, cx, cy, p1.x, p1.y, p2.x, p2.y, i);
+      drawTriangleWarp(video, cx, cy, p1.x, p1.y, p2.x, p2.y);
     }
     updateHandles();
   }
 
-  // zde se video opravdu "deformuje"
-  function drawTriangleWarp(img, x0, y0, x1, y1, x2, y2, index) {
+  function drawTriangleWarp(img, x0, y0, x1, y1, x2, y2) {
     const w = img.videoWidth;
     const h = img.videoHeight;
-
-    const sx0 = w / 2;
-    const sy0 = h / 2;
-    const sx1 = w / 2 + (x1 - canvas.width / 2) / 2;
-    const sy1 = h / 2 + (y1 - canvas.height / 2) / 2;
-    const sx2 = w / 2 + (x2 - canvas.width / 2) / 2;
-    const sy2 = h / 2 + (y2 - canvas.height / 2) / 2;
+    const sx0 = w / 2 + (x0 - canvas.width/2) / canvas.width * w;
+    const sy0 = h / 2 + (y0 - canvas.height/2) / canvas.height * h;
+    const sx1 = w / 2 + (x1 - canvas.width/2) / canvas.width * w;
+    const sy1 = h / 2 + (y1 - canvas.height/2) / canvas.height * h;
+    const sx2 = w / 2 + (x2 - canvas.width/2) / canvas.width * w;
+    const sy2 = h / 2 + (y2 - canvas.height/2) / canvas.height * h;
 
     ctx.save();
     ctx.beginPath();
@@ -229,10 +162,11 @@
 
     const a = ((x0 * (sy1 - sy2)) + (x1 * (sy2 - sy0)) + (x2 * (sy0 - sy1))) / denom;
     const b = ((y0 * (sy1 - sy2)) + (y1 * (sy2 - sy0)) + (y2 * (sy0 - sy1))) / denom;
+    const c = ((sx0 * (x1 * y2 - x2 * y1)) + (sx1 * (x2 * y0 - x0 * y2)) + (sx2 * (x0 * y1 - x1 * y0))) / denom;
+
     const d = ((x0 * (sx1 - sx2)) + (x1 * (sx2 - sx0)) + (x2 * (sx0 - sx1))) / denom;
     const e = ((y0 * (sx1 - sx2)) + (y1 * (sx2 - sx0)) + (y2 * (sx0 - sx1))) / denom;
-    const c = x0 - a * sx0 - d * sy0;
-    const f = y0 - b * sx0 - e * sy0;
+    const f = ((sy0 * (x1 * y2 - x2 * y1)) + (sy1 * (x2 * y0 - x0 * y2)) + (sy2 * (x0 * y1 - x1 * y0))) / denom;
 
     ctx.transform(a, b, d, e, c, f);
     ctx.drawImage(img, 0, 0);
@@ -246,10 +180,30 @@
     }
   }
 
+  canvas.addEventListener('pointerdown', e => {
+    lastX = e.clientX;
+    lastY = e.clientY;
+    isDragging = true;
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    if (isDragging && !deforming) {
+      rotationY += (e.clientX - lastX) * 0.01;
+      rotationX += (e.clientY - lastY) * 0.01;
+    }
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+
+  canvas.addEventListener('pointerup', () => {
+    isDragging = false;
+  });
+
   toggle.onclick = async () => {
     if (mode === 'mesh') {
       mode = 'camera';
-      toggle.textContent = 'Mode: camera';
+      toggle.classList.remove('mode-mesh');
+      toggle.classList.add('mode-camera');
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         video.srcObject = stream;
@@ -258,10 +212,13 @@
       } catch (err) {
         alert("Kamera nedostupná: " + err.message);
         mode = 'mesh';
+        toggle.classList.remove('mode-camera');
+        toggle.classList.add('mode-mesh');
       }
     } else {
       mode = 'mesh';
-      toggle.textContent = 'Mode: mesh';
+      toggle.classList.remove('mode-camera');
+      toggle.classList.add('mode-mesh');
       if (video.srcObject) {
         video.srcObject.getTracks().forEach(t => t.stop());
         video.srcObject = null;
@@ -275,6 +232,7 @@
     else drawCameraMesh();
     requestAnimationFrame(loop);
   }
+
   loop();
   </script>
 </body>
