@@ -84,16 +84,19 @@ video {
   border: none;
   cursor: pointer;
   z-index: 5;
+  opacity: 0.85; /* průhlednost */
+  transition: opacity 0.3s ease;
+}
+#toggle:hover {
+  opacity: 1;
 }
 
 /* obrázky pro režimy */
 .mode-mesh {
   background-image: url('Mesh.png');
-  opacity: 0.8;
 }
 .mode-camera {
   background-image: url('Camera.png');
-  opacity: 1;
 }
 
 /* spodní loga */
@@ -105,12 +108,27 @@ video {
   text-align: center;
   z-index: 3;
 }
+
+/* základní styl pro všechny png */
 #footer-logos img {
   display: block;
   margin: 6px auto;
-  max-width: 120px;
-  opacity: 0.8;
+  opacity: 0.85;
+  transition: opacity 0.3s ease;
+  image-rendering: auto;
 }
+
+/* první logo (větší) */
+#footer-logos a:first-child img {
+  max-width: 160px; /* větší logo (Logos.png) */
+}
+
+/* druhé logo (menší JH.png) */
+#footer-logos a:last-child img {
+  max-width: 90px; /* menší než Logos.png */
+}
+
+/* hover efekt */
 #footer-logos a:hover img {
   opacity: 1;
 }
@@ -121,7 +139,10 @@ video {
     width: 60px;
     height: 60px;
   }
-  #footer-logos img {
-    max-width: 90px;
+  #footer-logos a:first-child img {
+    max-width: 120px;
+  }
+  #footer-logos a:last-child img {
+    max-width: 70px;
   }
 }
