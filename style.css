@@ -125,7 +125,7 @@ video {
 
 /* druhé logo (menší JH.png) */
 #footer-logos a:last-child img {
-  max-width: 90px; /* menší než Logos.png */
+  max-width: 60px; /* menší než Logos.png */
 }
 
 /* hover efekt */
