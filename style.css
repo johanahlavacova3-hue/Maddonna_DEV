@@ -59,7 +59,7 @@ video {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(58,160,255,0.25), rgba(58,160,255,0.05), transparent 70%);
+  background: radial-gradient(circle, rgba(58,160,255,0.25), rgba(58,160,255,0.05), transparent 0%);
   animation: pulse 1.6s ease-out infinite;
   pointer-events: none;
 }
