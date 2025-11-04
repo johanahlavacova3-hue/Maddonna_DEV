@@ -11,17 +11,11 @@
   <div id="handles"></div>
   <video id="video" autoplay playsinline muted></video>
 
-  <!-- Tlačítko mode -->
   <button id="toggle" class="mode-mesh"></button>
 
-  <!-- Spodní loga -->
   <div id="footer-logos">
-    <a href="https://tvoje-url.cz" target="_blank">
-      <img src="Logos.png" alt="Logo">
-    </a>
-    <a href="https://jh-portfolio.cz" target="_blank">
-      <img src="JH.png" alt="JH">
-    </a>
+    <a href="https://tvoje-url.cz" target="_blank"><img src="Logos.png" alt="Logo"></a>
+    <a href="https://jh-portfolio.cz" target="_blank"><img src="JH.png" alt="JH"></a>
   </div>
 
   <script>
@@ -34,8 +28,8 @@
   let mode = 'mesh';
   let rotationY = 0, rotationX = 0;
   let isDragging = false;
-  let deforming = false;
   let lastX = 0, lastY = 0;
+  let deforming = false;
   let deformIndex = -1;
   let videoReady = false;
 
@@ -44,14 +38,9 @@
   const radius = 150;
   for (let i = 0; i < numSides; i++) {
     const angle = (i / numSides) * Math.PI * 2;
-    basePoints.push({ 
-      x: Math.cos(angle) * radius,
-      y: Math.sin(angle) * radius,
-      z: Math.sin(angle) * 40
-    });
+    basePoints.push({x: Math.cos(angle) * radius, y: Math.sin(angle) * radius, z: Math.sin(angle) * 40});
   }
 
-  // HTML nýty
   const handleEls = [];
   for (let i = 0; i < numSides; i++) {
     const el = document.createElement('div');
@@ -60,28 +49,6 @@
     el.innerHTML = '<div class="pulse"></div><div class="ring"></div>';
     handlesContainer.appendChild(el);
     handleEls.push(el);
-
-    el.addEventListener('pointerdown', e => {
-      e.preventDefault();
-      deformIndex = parseInt(el.dataset.index);
-      deforming = true;
-      lastX = e.clientX;
-      lastY = e.clientY;
-      el.setPointerCapture(e.pointerId);
-    });
-    el.addEventListener('pointerup', e => {
-      deforming = false;
-      deformIndex = -1;
-      el.releasePointerCapture(e.pointerId);
-    });
-    el.addEventListener('pointermove', e => {
-      if (!deforming || deformIndex !== parseInt(el.dataset.index)) return;
-      basePoints[deformIndex].x += (e.clientX - lastX) * 0.5;
-      basePoints[deformIndex].y += (e.clientY - lastY) * 0.5;
-      basePoints[deformIndex].z += Math.sin((e.clientX - lastX) * 0.05) * 20;
-      lastX = e.clientX;
-      lastY = e.clientY;
-    });
   }
 
   function resize() {
@@ -92,21 +59,14 @@
   resize();
 
   function project(p) {
-    const cosY = Math.cos(rotationY);
-    const sinY = Math.sin(rotationY);
-    const cosX = Math.cos(rotationX);
-    const sinX = Math.sin(rotationX);
-
+    const cosY = Math.cos(rotationY), sinY = Math.sin(rotationY);
+    const cosX = Math.cos(rotationX), sinX = Math.sin(rotationX);
     let x = p.x * cosY - p.z * sinY;
     let z = p.x * sinY + p.z * cosY;
     let y = p.y * cosX - z * sinX;
     z = p.y * sinX + z * cosX;
-
     const scale = 1 / (1 + z / 300);
-    return {
-      x: canvas.width / 2 + x * scale,
-      y: canvas.height / 2 + y * scale
-    };
+    return { x: canvas.width / 2 + x * scale, y: canvas.height / 2 + y * scale };
   }
 
   function drawMesh() {
@@ -134,41 +94,17 @@
     for (let i = 0; i < pts.length; i++) {
       const p1 = pts[i];
       const p2 = pts[(i + 1) % pts.length];
-      drawTriangleWarp(video, cx, cy, p1.x, p1.y, p2.x, p2.y);
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
     }
     updateHandles();
-  }
-
-  function drawTriangleWarp(img, x0, y0, x1, y1, x2, y2) {
-    const w = img.videoWidth;
-    const h = img.videoHeight;
-    if (w === 0 || h === 0) return;
-
-    const sx0 = 0, sy0 = 0;
-    const sx1 = w, sy1 = 0;
-    const sx2 = 0, sy2 = h;
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.closePath();
-    ctx.clip();
-
-    const denom = (sx0*(sy1-sy2) + sx1*(sy2-sy0) + sx2*(sy0-sy1));
-    if (denom === 0) { ctx.restore(); return; }
-
-    const a = ((x0*(sy1-sy2)) + (x1*(sy2-sy0)) + (x2*(sy0-sy1)))/denom;
-    const b = ((y0*(sy1-sy2)) + (y1*(sy2-sy0)) + (y2*(sy0-sy1)))/denom;
-    const c = ((sx0*(x1*y2 - x2*y1)) + (sx1*(x2*y0 - x0*y2)) + (sx2*(x0*y1 - x1*y0)))/denom;
-    const d = ((x0*(sx1-sx2)) + (x1*(sx2-sx0)) + (x2*(sx0-sx1)))/denom;
-    const e = ((y0*(sx1-sx2)) + (y1*(sx2-sx0)) + (y2*(sx0-sx1)))/denom;
-    const f = ((sy0*(x1*y2 - x2*y1)) + (sy1*(x2*y0 - x0*y2)) + (sy2*(x0*y1 - x1*y0)))/denom;
-
-    ctx.transform(a, b, d, e, c, f);
-    ctx.drawImage(img, 0, 0, w, h);
-    ctx.restore();
   }
 
   function updateHandles() {
@@ -178,52 +114,23 @@
     }
   }
 
-  canvas.addEventListener('pointerdown', e => {
-    lastX = e.clientX;
-    lastY = e.clientY;
-    isDragging = true;
-  });
-
-  canvas.addEventListener('pointermove', e => {
-    if (isDragging && !deforming) {
-      rotationY += (e.clientX - lastX) * 0.01;
-      rotationX += (e.clientY - lastY) * 0.01;
-    }
-    lastX = e.clientX;
-    lastY = e.clientY;
-  });
-
-  canvas.addEventListener('pointerup', () => {
-    isDragging = false;
-  });
-
   toggle.onclick = async () => {
     if (mode === 'mesh') {
       mode = 'camera';
-      toggle.classList.remove('mode-mesh');
-      toggle.classList.add('mode-camera');
-
+      toggle.classList.replace('mode-mesh', 'mode-camera');
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         video.srcObject = stream;
-
-        await new Promise(resolve => {
-          video.onloadedmetadata = () => {
-            video.play();
-            resolve();
-          };
-        });
+        await video.play();
         videoReady = true;
       } catch (err) {
         alert("Kamera nedostupná: " + err.message);
         mode = 'mesh';
-        toggle.classList.remove('mode-camera');
-        toggle.classList.add('mode-mesh');
+        toggle.classList.replace('mode-camera', 'mode-mesh');
       }
     } else {
       mode = 'mesh';
-      toggle.classList.remove('mode-camera');
-      toggle.classList.add('mode-mesh');
+      toggle.classList.replace('mode-camera', 'mode-mesh');
       if (video.srcObject) {
         video.srcObject.getTracks().forEach(t => t.stop());
         video.srcObject = null;
@@ -232,12 +139,22 @@
     }
   };
 
+  canvas.addEventListener('pointerdown', e => { isDragging = true; lastX = e.clientX; lastY = e.clientY; });
+  canvas.addEventListener('pointermove', e => {
+    if (isDragging) {
+      rotationY += (e.clientX - lastX) * 0.01;
+      rotationX += (e.clientY - lastY) * 0.01;
+    }
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+  canvas.addEventListener('pointerup', () => { isDragging = false; });
+
   function loop() {
     if (mode === 'mesh') drawMesh();
     else drawCameraMesh();
     requestAnimationFrame(loop);
   }
-
   loop();
   </script>
 </body>
