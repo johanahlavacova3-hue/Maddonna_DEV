@@ -82,19 +82,14 @@ video {
   background-repeat: no-repeat;
   background-position: center;
   border: none;
-  outline: none;
-  background-color: transparent !important; /* 💥 zruší podklad */
-  box-shadow: none;
   cursor: pointer;
   z-index: 5;
-  opacity: 1;
-  -webkit-tap-highlight-color: transparent; /* 💥 mobilní highlight */
-  appearance: none;
-  -webkit-appearance: none;
+  opacity: 0.9;
+  background-color: transparent;
   transition: opacity 0.3s ease;
 }
 #toggle:hover {
-  opacity: 0.9;
+  opacity: 1;
 }
 
 /* obrázky pro režimy */
@@ -103,6 +98,18 @@ video {
 }
 .mode-camera {
   background-image: url('Camera.png');
+}
+
+/* slicer */
+#slicer {
+  position: fixed;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  z-index: 5;
+  accent-color: #3aa0ff;
+  background: transparent;
 }
 
 /* spodní loga */
@@ -146,10 +153,13 @@ video {
     width: 60px;
     height: 60px;
   }
+  #slicer {
+    width: 160px;
+  }
   #footer-logos a:first-child img {
     max-width: 120px;
   }
   #footer-logos a:last-child img {
-    max-width: 70px;
+    max-width: 50px;
   }
 }
