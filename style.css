@@ -110,7 +110,6 @@ video {
   z-index: 5;
   accent-color: #ffffff;
   background: #ffffff;
-  filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
 }
 /* spodní loga */
 #footer-logos {
