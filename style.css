@@ -82,13 +82,19 @@ video {
   background-repeat: no-repeat;
   background-position: center;
   border: none;
+  outline: none;
+  background-color: transparent !important; /* 💥 zruší podklad */
+  box-shadow: none;
   cursor: pointer;
   z-index: 5;
-  opacity: 0.85; /* průhlednost */
+  opacity: 1;
+  -webkit-tap-highlight-color: transparent; /* 💥 mobilní highlight */
+  appearance: none;
+  -webkit-appearance: none;
   transition: opacity 0.3s ease;
 }
 #toggle:hover {
-  opacity: 1;
+  opacity: 0.9;
 }
 
 /* obrázky pro režimy */
@@ -116,16 +122,17 @@ video {
   opacity: 0.85;
   transition: opacity 0.3s ease;
   image-rendering: auto;
+  background: transparent;
 }
 
 /* první logo (větší) */
 #footer-logos a:first-child img {
-  max-width: 160px; /* větší logo (Logos.png) */
+  max-width: 160px;
 }
 
 /* druhé logo (menší JH.png) */
 #footer-logos a:last-child img {
-  max-width: 60px; /* menší než Logos.png */
+  max-width: 60px;
 }
 
 /* hover efekt */
