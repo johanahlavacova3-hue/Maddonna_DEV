@@ -13,7 +13,7 @@ canvas {
   touch-action: none;
 }
 
-/* video NESMÍ být display:none — dáváme ho mimo obrazovku */
+/* video NESMÍ být display:none — dáváme ho mimo obrazovkuu */
 video {
   position: absolute;
   top: -10000px;
