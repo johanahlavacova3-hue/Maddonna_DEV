@@ -108,10 +108,10 @@ video {
   transform: translateX(-50%);
   width: 200px;
   z-index: 5;
-  accent-color: #3aa0ff;
+  accent-color: #ffffff;
   background: transparent;
+  filter: drop-shadow(0 0 5px rgba(255,255,255,0.5));
 }
-
 /* spodní loga */
 #footer-logos {
   position: fixed;
