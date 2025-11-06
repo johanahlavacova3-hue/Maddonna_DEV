@@ -180,7 +180,7 @@ toggle.onclick = async () => {
   }
 };
 
-// rotace pomocí drag
+// rotace pomocí dragqueen
 canvas.addEventListener('pointerdown', e => {
   lastX = e.clientX;
   lastY = e.clientY;
