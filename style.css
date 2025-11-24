@@ -13,16 +13,6 @@ canvas {
   touch-action: none;
 }
 
-/* video NESMÍ být display:none — dáváme ho mimo obrazovkuu */
-video {
-  position: absolute;
-  top: -10000px;
-  left: -10000px;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
 #handles {
   position: absolute;
   inset: 0;
@@ -70,40 +60,10 @@ video {
   100% { transform: scale(1.0); opacity: 0.8; }
 }
 
-/* tlačítko nahoře */
-#toggle {
-  position: fixed;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 80px;
-  height: 80px;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  border: none;
-  cursor: pointer;
-  z-index: 5;
-  opacity: 0.9;
-  background-color: transparent;
-  transition: opacity 0.3s ease;
-}
-#toggle:hover {
-  opacity: 1;
-}
-
-/* obrázky pro režimy */
-.mode-mesh {
-  background-image: url('Mesh.png');
-}
-.mode-camera {
-  background-image: url('Camera.png');
-}
-
 /* slicer */
 #slicer {
   position: fixed;
-  top: 100px;
+  top: 10px; /* Posunuto nahoru */
   left: 50%;
   transform: translateX(-50%);
   width: 200px;
@@ -148,10 +108,6 @@ video {
 
 /* Responsivita */
 @media (max-width: 600px) {
-  #toggle {
-    width: 60px;
-    height: 60px;
-  }
   #slicer {
     width: 160px;
   }
