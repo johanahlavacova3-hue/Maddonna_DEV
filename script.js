@@ -1,17 +1,13 @@
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-const video = document.getElementById('video');
-const toggle = document.getElementById('toggle');
 const handlesContainer = document.getElementById('handles');
 const slicer = document.getElementById('slicer');
 
-let mode = 'mesh';
 let rotationY = 0, rotationX = 0;
 let isDragging = false;
 let deforming = false;
 let lastX = 0, lastY = 0;
 let deformIndex = -1;
-let videoReady = false;
 let slices = 1;
 
 // reaguj na změnu sliceru
@@ -113,72 +109,12 @@ function drawMesh() {
   updateHandles();
 }
 
-// vykreslení s kamerou
-function drawCameraMesh() {
-  if (!videoReady) return;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  for (let s = 0; s < slices; s++) {
-    const depthOffset = (s - (slices - 1) / 2) * 40;
-    const pts = basePoints.map(p => project({ ...p, z: p.z + depthOffset }));
-    const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
-    const cy = pts.reduce((a, p) => a + p.y, 0) / pts.length;
-
-    for (let i = 0; i < pts.length; i++) {
-      const p1 = pts[i];
-      const p2 = pts[(i + 1) % pts.length];
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.closePath();
-      ctx.clip();
-
-      const scaleX = 1 + (basePoints[i].x - basePoints[(i + 1) % numSides].x) / 800;
-      const scaleY = 1 + (basePoints[i].y - basePoints[(i + 1) % numSides].y) / 800;
-      ctx.scale(scaleX, scaleY);
-      ctx.drawImage(video, 0, 0, canvas.width / scaleX, canvas.height / scaleY);
-      ctx.restore();
-    }
-  }
-  updateHandles();
-}
-
 function updateHandles() {
   const pts = basePoints.map(project);
   for (let i = 0; i < handleEls.length; i++) {
     handleEls[i].style.transform = `translate(${pts[i].x}px, ${pts[i].y}px)`;
   }
 }
-
-// ovládání kamery
-toggle.onclick = async () => {
-  if (mode === 'mesh') {
-    mode = 'camera';
-    toggle.classList.replace('mode-mesh', 'mode-camera');
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      });
-      video.srcObject = stream;
-      await video.play();
-      videoReady = true;
-    } catch (err) {
-      alert("Kamera nedostupná: " + err.message);
-      mode = 'mesh';
-      toggle.classList.replace('mode-camera', 'mode-mesh');
-    }
-  } else {
-    mode = 'mesh';
-    toggle.classList.replace('mode-camera', 'mode-mesh');
-    if (video.srcObject) {
-      video.srcObject.getTracks().forEach(t => t.stop());
-      video.srcObject = null;
-    }
-    videoReady = false;
-  }
-};
 
 // rotace pomocí dragqueen
 canvas.addEventListener('pointerdown', e => {
@@ -197,8 +133,7 @@ canvas.addEventListener('pointermove', e => {
 canvas.addEventListener('pointerup', () => { isDragging = false; deforming = false; });
 
 function loop() {
-  if (mode === 'mesh') drawMesh();
-  else drawCameraMesh();
+  drawMesh(); // Vždy vykreslíme jen mesh
   requestAnimationFrame(loop);
 }
 loop();
